@@ -387,7 +387,13 @@ Function selection_text() As String
         Dim s As Long = IIf(li = a_li, a_ci, 0)
         Dim e As Long = IIf(li = b_li, b_ci, n - 1)
         If e >= n Then e = n - 1
-        Dim piece As String = IIf(e >= s, cells_text(cells(), s, e + 1), "")
+        ' copy the original text (cells may hold Arabic presentation forms)
+        Dim piece As String = ""
+        If e >= s Then
+            Dim b0 As Long = cells(s).src
+            Dim b1 As Long = IIf(e + 1 < n, cells(e + 1).src, Len(p->text))
+            piece = irc_strip_format(Mid(p->text, b0 + 1, b1 - b0))
+        End If
         If a_li <> b_li AndAlso s = 0 AndAlso Len(p->prefix) > 0 Then piece = p->prefix & " " & piece
         If li > a_li Then txt_out &= Chr(10)
         txt_out &= piece
@@ -690,19 +696,28 @@ Sub app_main()
 
     Dim mx As Long, my As Long, mb As Long, wh As Long
     Do
-        Dim k As ULong = vt_inkey()
-        Dim cp As ULong = vt_key_cp()
-        Dim mr As Long = vt_tui_menubar_handle(1, menu_groups(), menu_items(), menu_counts(), k)
-        If mr > 0 Then
-            menu_action(mr)
-            k = 0
-            m_prev = 7          ' ignore the click that closed the menu
-        ElseIf mr <> 0 Then
-            k = 0
-        End If
+        ' handle every key that arrived since the last frame (fast typing,
+        ' IME commits); the menu bar sees each key first, and one call with
+        ' no key lets it react to clicks on the bar
+        Dim nkeys As Long = 0
+        Do
+            Dim k As ULong = vt_inkey()
+            Dim cp As ULong = vt_key_cp()
+            If k = 0 AndAlso nkeys > 0 Then Exit Do
+            Dim mr As Long = vt_tui_menubar_handle(1, menu_groups(), menu_items(), menu_counts(), k)
+            If mr > 0 Then
+                menu_action(mr)
+                k = 0
+                m_prev = 7          ' ignore the click that closed the menu
+            ElseIf mr <> 0 Then
+                k = 0
+            End If
+            If k <> 0 Then app_key(k, cp)
+            nkeys += 1
+            If k = 0 OrElse nkeys > 64 OrElse app_quit Then Exit Do
+        Loop
         app_check_resize()
         If vt_paste_requested() Then app_paste(vt_clipboard_get())
-        If k <> 0 Then app_key(k, cp)
         vt_getmouse(@mx, @my, @mb, @wh)
         app_mouse(mx, my, mb, wh)
         app_timers()

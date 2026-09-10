@@ -162,3 +162,22 @@ Scope
     check_str(path_sanitize("con"), "_con", "sanitize reserved names")
     check_str(path_sanitize(!"#עברית"), !"#עברית", "sanitize keeps unicode")
 End Scope
+
+t_begin("arabic")
+Scope
+    Dim cps(0 To 3) As ULong = { &h633, &h644, &h627, &h645 }     ' salam
+    Dim keep() As Byte
+    arabic_shape(cps(), 4, keep())
+    check_int(cps(0), &hFEB3, "seen initial")
+    check_int(cps(1), &hFEFC, "lam-alef final ligature")
+    check(keep(2) = 0, "alef absorbed into the ligature")
+    check_int(cps(3), &hFEE1, "meem isolated after alef")
+    Dim c2(0 To 2) As ULong = { &h628, &h640, &h628 }             ' beh tatweel beh
+    arabic_shape(c2(), 3, keep())
+    check_int(c2(0), &hFE91, "beh initial before tatweel")
+    check_int(c2(2), &hFE90, "beh final after tatweel")
+    Dim c3(0 To 1) As ULong = { &h62F, &h628 }                     ' dal does not join forward
+    arabic_shape(c3(), 2, keep())
+    check_int(c3(0), &hFEA9, "dal isolated")
+    check_int(c3(1), &hFE8F, "beh isolated after dal")
+End Scope

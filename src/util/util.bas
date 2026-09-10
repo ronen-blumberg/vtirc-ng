@@ -4,5 +4,6 @@
 #Include Once "strutil.bas"
 #Include Once "utf8.bas"
 #Include Once "bidi.bas"
+#Include Once "arabic.bas"
 #Include Once "ini.bas"
 #Include Once "paths.bas"

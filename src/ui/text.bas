@@ -100,6 +100,24 @@ Function text_cells(ByRef s As String, base_fg As UByte, base_bg As UByte, cells
             End If
         End Select
     Wend
+    ' Arabic: contextual forms; letters absorbed into a ligature become
+    ' zero-width cells (indices stay stable for selection / URLs)
+    If n > 0 Then
+        Static acp() As ULong
+        Static akeep() As Byte
+        ReDim acp(0 To n - 1)
+        Dim ai As Long
+        For ai = 0 To n - 1
+            acp(ai) = cells(ai).cp
+        Next ai
+        If arabic_present(acp(), n) Then
+            arabic_shape(acp(), n, akeep())
+            For ai = 0 To n - 1
+                cells(ai).cp = acp(ai)
+                If akeep(ai) = 0 Then cells(ai).w = 0
+            Next ai
+        End If
+    End If
     Return n
 End Function
 
@@ -241,6 +259,7 @@ End Function
 ' ---------------------------------------------------------------- drawing
 ' Draw one cell (wide glyphs take two columns). Returns columns used.
 Function ui_put(col As Long, row As Long, cp As ULong, fg As UByte, bg As UByte, attr As UByte, w As Long) As Long
+    If w <= 0 Then Return 0
     If w = 2 Then
         vt_set_cell_ex(col, row, cp, fg, bg, attr Or VT_ATTR_WIDE)
         vt_set_cell_ex(col + 1, row, cp, fg, bg, attr Or VT_ATTR_WIDE_CONT)

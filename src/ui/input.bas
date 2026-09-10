@@ -342,6 +342,13 @@ Sub input_render()
         n += 1
     Wend
     If cur_cell < 0 Then cur_cell = n
+    If n > 0 AndAlso arabic_present(cps(), n) Then
+        Static akeep() As Byte
+        arabic_shape(cps(), n, akeep())
+        For i As Long = 0 To n - 1
+            If akeep(i) = 0 Then wid(i) = 0
+        Next i
+    End If
     ' column of the cursor in logical layout
     Dim ccol As Long = 0
     Dim i As Long
