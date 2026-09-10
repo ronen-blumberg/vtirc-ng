@@ -350,8 +350,8 @@ Since the whole program gets rewritten on the new architecture, the 1.23 bugs fr
 - [x] 0.1 Build scripts (`build/build.sh`, `build/build.bat`), `-arch native` removed, libvt vendored
 - [x] 0.2 libvt Unicode extension, Unifont fonts, display-width tables
 - [x] 0.3 Util modules (UTF-8, width, bidi, INI config, paths, base64, wildcards) + unit tests
-- [ ] 0.4 IRC core (parser, casemap, ISUPPORT, transport+threads+TLS, conn state machine, sendq, CAP/SASL, handlers, CTCP, buffers, events, logging) + fake-server integration tests
-- [ ] 0.5 Command table and full command set
+- [x] 0.4 IRC core (parser, casemap, ISUPPORT, transport+threads+TLS, conn state machine, sendq, CAP/SASL, handlers, CTCP, buffers, events, logging) + fake-server integration tests
+- [x] 0.5 Command table and full command set
 - [ ] 1.x UI: layout, window tree, nick list, topic bar, UTF-8/bidi input line, status bar, selection/copy, menus, dialogs
 - [ ] 2.x Multi-server UI, network list, config migration
 - [ ] 3.x Highlights, ignore, lastlog/search, smart filter, URL list, notifications, themes
