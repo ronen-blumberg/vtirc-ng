@@ -1,0 +1,51 @@
+# Build and test vtirc-ng with FreeBASIC 1.10.1.
+# NOTE: not run yet -- check the FreeBASIC download URLs on the first run.
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  linux64:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install FreeBASIC 1.10.1 and SDL2
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libsdl2-dev libncurses-dev libtinfo5 python3
+          wget -q -L "https://downloads.sourceforge.net/fbc/FreeBASIC-1.10.1-linux-x86_64.tar.gz?download" -O fbc.tar.gz
+          tar -xzf fbc.tar.gz
+          cd FreeBASIC-1.10.1-linux-x86_64 && sudo ./install.sh -i /usr/local
+      - name: Build
+        run: FBC=/usr/local/bin/fbc build/build.sh linux64 release
+      - name: Unit tests
+        run: FBC=/usr/local/bin/fbc build/build.sh test
+      - name: Network tests
+        run: FBC=/usr/local/bin/fbc tests/run_net.sh 16667
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vtirc-ng-linux64
+          path: build/out/linux64/vtirc-ng
+
+  win32:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install FreeBASIC 1.10.1 (win32)
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri "https://downloads.sourceforge.net/fbc/FreeBASIC-1.10.1-win32.zip?download" -OutFile fbc.zip -UserAgent "Wget"
+          Expand-Archive fbc.zip -DestinationPath fbc
+      - name: Build
+        shell: cmd
+        run: |
+          for /d %%d in (fbc\FreeBASIC-*) do set FBC=%%d\fbc.exe
+          build\build.bat release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vtirc-ng-win32
+          path: |
+            build/out/win32/vtirc-ng.exe
+            build/out/win32/SDL2.dll

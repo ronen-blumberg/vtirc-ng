@@ -353,11 +353,23 @@ Since the whole program gets rewritten on the new architecture, the 1.23 bugs fr
 - [x] 0.4 IRC core (parser, casemap, ISUPPORT, transport+threads+TLS, conn state machine, sendq, CAP/SASL, handlers, CTCP, buffers, events, logging) + fake-server integration tests
 - [x] 0.5 Command table and full command set
 - [x] 1.x UI: layout, window tree, nick list, topic bar, UTF-8/bidi input line, status bar, selection/copy, menus, dialogs
-- [ ] 2.x Multi-server UI, network list, config migration
+- [x] 2.x Multi-server UI, network list, config migration
 - [x] 3.x Highlights (+window), ignore, lastlog/search, smart filter, URL list, notifications, theme overrides, notify list
 - [x] 4.x Aliases, perform, triggers, auto-away, per-window notify levels, clickable #channels
 - [x] 5.x DCC, SOCKS5/HTTP proxy, IPv6 (proxies + IPv6 landed with the core)
-- [ ] 6.x Release packaging, docs, CLAUDE.md
+- [x] 6.x Release packaging (build/package.sh), README, CHANGELOG, LICENSE, CLAUDE.md
+
+### Not done / known limits in 2.0.0
+
+- Certificates are pinned on first use; there is no certificate-authority chain check and no SASL EXTERNAL (client certificates). Both need the mbedTLS source to rebuild `vt_tls_glue.c`.
+- Lua scripting was left out (aliases, perform lists and triggers were chosen instead).
+- There's no channel-mode dialog; `/mode`, `/banlist`, `/exceptlist` and `/invitelist` cover it.
+- Logs are one file per window, with no daily rotation.
+- Passwords in the network dialog are shown in clear text; libvt form fields can't be masked.
+- Combining marks (Hebrew niqqud, Arabic harakat) are not drawn. Persian/Urdu letters outside basic Arabic are not shaped. Italic is drawn upright.
+- libvt dialogs (forms) accept only CP437 input; the main input line takes any Unicode.
+- The Windows build has been tested under wine, not on a real Windows machine yet.
+- `.github/workflows/ci.yml` has not run yet; the Windows job's FreeBASIC download needs checking on the first run.
 
 ## 9. Suggested first steps
 

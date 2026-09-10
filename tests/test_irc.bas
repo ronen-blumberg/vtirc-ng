@@ -429,3 +429,55 @@ Scope
     check(t1 - t0 < 2, "big NAMES list loads quickly")
     check(t2 - t1 < 2, "quits in a big channel are fast")
 End Scope
+
+' ---------------------------------------------------------------- migration / logs
+t_begin("migrate")
+Scope
+    Dim d As String = t_config_dir("vtirc_ng_migrate")
+    Dim fh As Long = FreeFile()
+    Open d & "/.vtirc" For Output As #fh
+    Print #fh, "server=127.0.0.1"
+    Print #fh, "port=6668"
+    Print #fh, "channel=#i2p-chat,#chat"
+    Print #fh, "nick=solo88"
+    Print #fh, "password=secret"
+    Print #fh, "scheme=1"
+    Print #fh, "nick_alt=solo88_"
+    Close #fh
+    Dim before As Long = net_count
+    check(config_migrate_v1(d & "/.vtirc"), "1.x config imported")
+    Dim ni As Long = net_find("Migrated (127.0.0.1)")
+    check(ni >= 0, "network created from the old server")
+    If ni >= 0 Then
+        check_int(nets(ni).servers(0).port, 6668, "port kept")
+        check_int(nets(ni).aj_count, 2, "channels become autojoin")
+        check_str(nets(ni).autojoin(0), "#i2p-chat", "first channel")
+        check_int(nets(ni).login, LOGIN_SERVERPASS, "password becomes a server password")
+        check(nets(ni).autoconnect, "migrated network connects at startup")
+    End If
+    check_str(cfg.nick, "solo88", "nick kept")
+    check_str(cfg.altnicks, "solo88_", "alt nick kept")
+    check_int(cfg.theme, 1, "colour scheme kept")
+    If ni >= 0 Then net_remove(ni)
+End Scope
+
+t_begin("logs")
+Scope
+    cfg.log_enabled = 1
+    Dim lb As Long = buf_find_kind(tc, BK_CHANNEL, "#trig")
+    If lb < 0 Then
+        t_srv(":testnick!u@host.example JOIN #trig")
+        lb = buf_find_kind(tc, BK_CHANNEL, "#trig")
+    End If
+    Dim lp As String = log_path_for(lb)
+    If file_exists(lp) Then Kill lp
+    Dim i As Long
+    For i = 1 To 30
+        ev_line(lb, LK_MSG, 0, "<alice>", "alice", !"line " & i & !" שלום")
+    Next i
+    check(file_exists(lp), "log file written")
+    Dim tl() As String
+    check_int(log_tail(lb, 10, tl()), 10, "log tail returns the last lines")
+    check(InStr(tl(9), !"<alice> line 30 שלום") > 0, "newest line last, UTF-8 kept")
+    check(InStr(tl(0), "<alice> line 21 ") > 0, "oldest of the tail first")
+End Scope

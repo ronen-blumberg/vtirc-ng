@@ -21,3 +21,4 @@ int_*.*
 /config/
 /logs/
 portable
+/dist/
