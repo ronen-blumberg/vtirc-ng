@@ -235,6 +235,9 @@ Sub vt_pump()
                     sc_raw = evt.key.keysym.scancode
                     If sc_raw >= 4 AndAlso sc_raw <= 29 Then
                         ascii_ch = CByte(sc_raw + 93)
+                    ElseIf sc_raw >= 30 AndAlso sc_raw <= 39 Then
+                        ' vtirc-ng: Alt+digit ('1'..'9','0') for window switching
+                        ascii_ch = IIf(sc_raw = 39, 48, sc_raw + 19)
                     End If
                 End If
 
@@ -1631,6 +1634,7 @@ Sub vt_sleep(ms As Long = 0)
     Dim k         As ULong
 
     t_start = vt_internal_ticks()
+    vt_internal_idle()                 ' vtirc-ng: background work (vt_on_idle)
 
     Do
         If ms = 0 Then

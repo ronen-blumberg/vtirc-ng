@@ -458,6 +458,8 @@ Type vt_internal_state
     ext_buf(_VT_PAGE_SLOTS - 1)     As vt_ext_cell Ptr  ' parallel to page_buf
     key_cp(_VT_KEY_BUFFER_SIZE - 1) As ULong            ' codepoint per key_buf slot
     last_key_cp                     As ULong            ' codepoint of last key read
+    idle_cb                         As Sub()            ' called from vt_sleep (vt_on_idle)
+    idle_busy                       As Byte
 End Type
 
 Dim Shared vt_internal As vt_internal_state

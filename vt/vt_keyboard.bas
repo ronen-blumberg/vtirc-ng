@@ -436,3 +436,10 @@ Function vt_input(max_len   As Long = -1, _
         End Select
     Loop
 End Function 
+
+' -----------------------------------------------------------------------------
+' vtirc-ng extension: inject a key event (automated UI tests)
+' -----------------------------------------------------------------------------
+Sub vt_key_inject(k As ULong, cp As ULong = 0)
+    vt_internal_key_push(k, cp)
+End Sub

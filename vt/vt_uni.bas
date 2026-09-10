@@ -577,3 +577,30 @@ Sub vt_clipboard_set(utf8 As String)
         SDL_SetClipboardText(StrPtr(utf8))
     #Endif
 End Sub
+
+' -----------------------------------------------------------------------------
+' Idle callback
+' -----------------------------------------------------------------------------
+
+'>>>
+':topic vt_on_idle
+':short Register a callback that runs while the program waits
+':group General
+'The callback is called at the start of every
+'vt_sleep, including the waits inside modal TUI
+'loops (menus, dialogs), so background work such
+'as network I/O keeps running while they are open.
+'It must not draw or wait for keys itself. Pass 0
+'to remove it. Not re-entered while it runs.
+':syntax
+Sub vt_on_idle(cb As Sub())
+    '<<<
+    vt_internal.idle_cb = cb
+End Sub
+
+Private Sub vt_internal_idle()
+    If vt_internal.idle_cb = 0 OrElse vt_internal.idle_busy Then Exit Sub
+    vt_internal.idle_busy = 1
+    vt_internal.idle_cb()
+    vt_internal.idle_busy = 0
+End Sub
