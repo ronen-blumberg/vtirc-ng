@@ -1,0 +1,12 @@
+Thumbs.db
+.vtirc
+*.zip
+*.dll
+*.exe
+*.fbs
+*.log
+*.bak
+*.patch
+vt/
+vtirc
+int_*.*
