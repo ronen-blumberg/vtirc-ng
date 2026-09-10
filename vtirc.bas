@@ -1,7 +1,7 @@
 ' vtirc.bas -- VTIRC minimal IRC client built on libvt
 ' FreeBASIC 1.10.1 | libvt 1.9+ | Windows + Linux + Mac
 ' To compile for Mac, define __FB_MAC__
-#cmdline "-s gui -w all -arch native -gen gcc -O 3"
+#cmdline "-s gui -w all -gen gcc -O 2"
 
 #Ifndef __FB_MAC__
     #Define IRC_LINUX_NOTIFY

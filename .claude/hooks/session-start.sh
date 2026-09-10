@@ -33,11 +33,4 @@ if ! command -v fbc &>/dev/null; then
     echo "FreeBASIC installed: $(fbc -version)"
 fi
 
-# Clone libvt into vt/ if not already present
-# The libvt repo has its include files inside a vt/ subfolder
-if [ ! -d "${CLAUDE_PROJECT_DIR}/vt" ]; then
-    echo "Cloning libvt..."
-    git clone --depth=1 https://github.com/rbreitinger/libvt /tmp/libvt-src
-    cp -r /tmp/libvt-src/vt "${CLAUDE_PROJECT_DIR}/vt"
-    echo "libvt ready."
-fi
+# libvt is vendored in vt/ (with vtirc-ng extensions) -- nothing to fetch.
