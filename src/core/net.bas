@@ -98,6 +98,32 @@ Private Function net_addr_string(sa As UByte Ptr, family As Long) As String
     Return r
 End Function
 
+' Wait for a non-blocking connect. Windows reports a refused connection in
+' the exception set (not as writable), so both sets are watched.
+' Returns 1 connected, 0 timed out, -1 failed.
+Private Function net_wait_connect(s As Long, timeout_ms As Long) As Long
+    Dim tv As timeval
+    tv.tv_sec  = timeout_ms \ 1000
+    tv.tv_usec = (timeout_ms Mod 1000) * 1000
+    Dim wset As fd_set
+    Dim eset As fd_set
+    FD_SET_(s, @wset)
+    FD_SET_(s, @eset)
+    Dim r As Long = select_(s + 1, 0, @wset, @eset, @tv)
+    If r = 0 Then Return 0
+    If r < 0 Then Return -1
+    If FD_ISSET(s, @eset) Then Return -1
+    Dim so_err As Long = 0
+    #Ifdef __FB_WIN32__
+        Dim so_len As Long = SizeOf(so_err)
+        getsockopt(s, SOL_SOCKET, SO_ERROR, Cast(ZString Ptr, @so_err), @so_len)
+    #Else
+        Dim so_len As socklen_t = SizeOf(so_err)
+        getsockopt(s, SOL_SOCKET, SO_ERROR, @so_err, @so_len)
+    #Endif
+    Return IIf(so_err = 0, 1, -1)
+End Function
+
 ' Resolve host and connect to the first address that answers within
 ' timeout_ms. Returns a blocking socket, or -1 with errmsg set.
 Private Function net_tcp_connect(ByRef host As String, port As Long, timeout_ms As Long, _
@@ -119,24 +145,13 @@ Private Function net_tcp_connect(ByRef host As String, port As Long, timeout_ms 
         If s >= 0 Then
             vt_net_nonblocking(s, 1)
             connect(s, ai->ai_addr, ai->ai_addrlen)
-            If vt_net_ready(s, 1, timeout_ms) > 0 Then
-                Dim so_err As Long = 0
-                #Ifdef __FB_WIN32__
-                    Dim so_len As Long = SizeOf(so_err)
-                    getsockopt(s, SOL_SOCKET, SO_ERROR, Cast(ZString Ptr, @so_err), @so_len)
-                #Else
-                    Dim so_len As socklen_t = SizeOf(so_err)
-                    getsockopt(s, SOL_SOCKET, SO_ERROR, @so_err, @so_len)
-                #Endif
-                If so_err = 0 Then
-                    vt_net_nonblocking(s, 0)
-                    addr_out = net_addr_string(CPtr(UByte Ptr, ai->ai_addr), ai->ai_family)
-                    Exit While
-                End If
-                errmsg = "connection refused"
-            Else
-                errmsg = "connection timed out"
+            Dim wc As Long = net_wait_connect(s, timeout_ms)
+            If wc = 1 Then
+                vt_net_nonblocking(s, 0)
+                addr_out = net_addr_string(CPtr(UByte Ptr, ai->ai_addr), ai->ai_family)
+                Exit While
             End If
+            errmsg = IIf(wc = 0, "connection timed out", "connection refused")
             vt_net_close(s)
             s = -1
         End If
