@@ -1,12 +1,23 @@
 Thumbs.db
-.vtirc
 *.zip
-*.dll
+*.tar.gz
 *.exe
 *.fbs
-*.log
 *.bak
 *.patch
-vt/
-vtirc
+*.o
 int_*.*
+
+# build output
+/build/out/
+/vtirc
+/vtirc-ng
+/tests/test_core
+/tests/*.exe
+
+# user runtime data (config, logs, cert pins) -- never commit
+.vtirc
+*.log
+/config/
+/logs/
+portable
