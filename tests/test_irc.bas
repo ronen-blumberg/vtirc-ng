@@ -277,6 +277,7 @@ End Scope
 ' ---------------------------------------------------------------- SASL
 t_begin("sasl")
 Scope
+    Dim keep0 As Long = sv(0), keep1 As Long = sv(1)   ' the main test connection's pair
     Dim ni As Long = net_add("SaslNet")
     nets(ni).login = LOGIN_SASL
     nets(ni).login_user = "acct"
@@ -296,6 +297,8 @@ Scope
     t_srv(":srv 903 saslnick :SASL authentication successful")
     check(InStr(t_sent(), "CAP END|") > 0, "CAP END after SASL success")
     conn_free(c)
+    vt_net_close(sv(1))
+    sv(0) = keep0 : sv(1) = keep1
 End Scope
 
 ' ---------------------------------------------------------------- config
@@ -321,4 +324,48 @@ Scope
     check(nj >= 0, "network found by name")
     check_int(nets(nj).aj_count, 2, "autojoin reloaded")
     check_str(nets(nj).autojoin(0), "#one key", "autojoin key kept")
+End Scope
+
+' ---------------------------------------------------------------- extras
+t_begin("extras")
+Scope
+    cfg.flood_burst = 1000
+    conns(tc).tokens = 1000
+    t_srv(":testnick!u@host.example JOIN #trig")
+    Dim tb As Long = buf_find_kind(tc, BK_CHANNEL, "#trig")
+    check(tb >= 0, "joined #trig")
+    t_sent()
+    cmd_execute(tb, "/trigger add text|*ping me*|#trig|/say pong $nick ($1)")
+    check_int(trig_count, 1, "trigger stored")
+    t_srv(":alice!a@h PRIVMSG #trig :please ping me now")
+    check(InStr(t_sent(), "PRIVMSG #trig :pong alice (please)|") > 0, "trigger fires with expansions")
+    t_srv(":testnick!u@host.example PRIVMSG #trig :ping me too")
+    check(InStr(t_sent(), "pong") = 0, "own lines never fire triggers")
+    ' highlights window
+    t_srv(":alice!a@h PRIVMSG #trig :testnick: look here")
+    check(buf_valid(hl_buf), "(highlights) window created")
+    If buf_valid(hl_buf) Then check(InStr(t_last_text(hl_buf), "TestNet/#trig: testnick: look here") > 0, "highlight copied with its origin")
+    ' URL log
+    t_srv(":alice!a@h PRIVMSG #trig :see https://example.org/x. and www.test.org")
+    check(url_log_n >= 2, "links logged")
+    check(InStr(url_log((url_log_head + url_log_n - 2) Mod URL_LOG_MAX), "|https://example.org/x") > 0, "trailing dot stripped")
+    ' notify list via ISON
+    cmd_execute(tb, "/notify add friend1")
+    friends_poll()
+    check(InStr(t_sent(), "ISON friend1|") > 0, "ISON poll when MONITOR is not available")
+    t_srv(":srv 303 testnick :friend1")
+    check(InStr(t_last_text(conns(tc).status_buf), "friend1 is online") > 0, "friend online reported")
+    t_srv(":srv 303 testnick :")
+    ison_next(tc) = 0
+    check(InStr(t_last_text(conns(tc).status_buf), "friend1 went offline") > 0, "friend offline reported")
+    cmd_execute(tb, "/notify del friend1")
+    ' per-window notification level
+    cmd_execute(tb, "/chanset notify none")
+    check_int(bufs(tb).notify_mode, 3, "chanset notify none")
+    check_str(ini_get(cfg_ini, "chanset", "testnet/#trig"), "notify=none", "chanset persisted")
+    Dim before As Long = stub_notifies
+    t_srv(":alice!a@h PRIVMSG #trig :testnick are you there")
+    check_int(stub_notifies, before, "no notification in a silenced window")
+    cmd_execute(tb, "/trigger del 1")
+    check_int(trig_count, 0, "trigger removed")
 End Scope

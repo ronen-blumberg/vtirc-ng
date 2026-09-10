@@ -354,8 +354,8 @@ Since the whole program gets rewritten on the new architecture, the 1.23 bugs fr
 - [x] 0.5 Command table and full command set
 - [x] 1.x UI: layout, window tree, nick list, topic bar, UTF-8/bidi input line, status bar, selection/copy, menus, dialogs
 - [ ] 2.x Multi-server UI, network list, config migration
-- [ ] 3.x Highlights, ignore, lastlog/search, smart filter, URL list, notifications, themes
-- [ ] 4.x Aliases, perform, triggers, away log, channel-mode dialog
+- [x] 3.x Highlights (+window), ignore, lastlog/search, smart filter, URL list, notifications, theme overrides, notify list
+- [x] 4.x Aliases, perform, triggers, auto-away, per-window notify levels, clickable #channels
 - [x] 5.x DCC, SOCKS5/HTTP proxy, IPv6 (proxies + IPv6 landed with the core)
 - [ ] 6.x Release packaging, docs, CLAUDE.md
 

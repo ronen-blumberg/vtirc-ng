@@ -357,6 +357,7 @@ Sub c_query(ByRef x As cmd_ctx)
     Dim id As Long = buf_find_kind(x.c, BK_QUERY, nick)
     If id < 0 Then
         id = buf_new(x.c, BK_QUERY, nick, 1)
+        chanset_apply(id)
         ev_replay_log(id)
     Else
         ui_request_focus(id)
@@ -1012,6 +1013,22 @@ Sub c_dcc(ByRef x As cmd_ctx)
     dcc_command(x.c, x.buf, x.args)
 End Sub
 
+Sub c_trigger(ByRef x As cmd_ctx)
+    extras_cmd_trigger(x.buf, x.args)
+End Sub
+
+Sub c_urls(ByRef x As cmd_ctx)
+    extras_cmd_urls(x.buf, x.args)
+End Sub
+
+Sub c_notify(ByRef x As cmd_ctx)
+    extras_cmd_notify(x.c, x.args)
+End Sub
+
+Sub c_chanset(ByRef x As cmd_ctx)
+    extras_cmd_chanset(x.buf, x.args)
+End Sub
+
 Sub c_help(ByRef x As cmd_ctx)
     Dim nm As String = LCase(str_word(x.args, 0))
     If Left(nm, 1) = "/" Then nm = Mid(nm, 2)
@@ -1248,5 +1265,9 @@ Sub cmd_init()
     cmd_reg("cert",       @c_cert,        1, "/cert [accept|forget]", "Show or accept this server's TLS certificate pin")
     cmd_reg("charset",    @c_charset,     1, "/charset [utf-8|cp1255|cp1251|cp1252|...]", "Character set for this network")
     cmd_reg("dcc",        @c_dcc,         0, "/dcc [chat <nick> | send <nick> <file> | get <nick> [file] | close <nick> | list]", "Direct client-to-client chat and file transfer")
+    cmd_reg("trigger",    @c_trigger,     0, "/trigger [add <event>|<mask>|<channel>|<command> | del <n>]", "Run a command when something happens (text join part kick nick quit invite action notice)")
+    cmd_reg("urls",       @c_urls,        0, "/urls [count]", "List the links seen recently")
+    cmd_reg("notify",     @c_notify,      0, "/notify [add|del <nick>]", "Notify list: tells you when these nicks come online")
+    cmd_reg("chanset",    @c_chanset,     1, "/chanset notify <all|highlights|none>", "Per-window notification level")
     cmd_reg("help",       @c_help,        0, "/help [command]", "List commands or show help for one")
 End Sub

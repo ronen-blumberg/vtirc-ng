@@ -523,7 +523,11 @@ Sub app_mouse(mx As Long, my As Long, mb As Long, wh As Long)
             Dim t As String = selection_text()
             If Len(t) > 0 Then vt_clipboard_set(t)
         ElseIf m_moved = 0 AndAlso Len(m_url) > 0 Then
-            If open_url(m_url) = 0 Then ev_client("Not opening " & m_url)
+            If Left(m_url, 1) = "#" Then
+                cmd_execute(ui_active, "/join " & m_url)
+            ElseIf open_url(m_url) = 0 Then
+                ev_client("Not opening " & m_url)
+            End If
             sel_on = 0
         Else
             sel_on = 0
@@ -552,9 +556,9 @@ Sub app_mouse(mx As Long, my As Long, mb As Long, wh As Long)
                 popup_nick(rmap(ri2).nick, mx, my)
             ElseIf rmap(ri2).li >= 0 AndAlso rcol_url(ri2, col2) > 0 Then
                 Dim u As String = rmap_url(ri2, rcol_url(ri2, col2))
-                Dim ui_items(0 To 1) As String = { "Open link", "Copy link" }
+                Dim ui_items(0 To 1) As String = { IIf(Left(u, 1) = "#", "Join channel", "Open link"), "Copy" }
                 Select Case dlg_popup(mx, my, ui_items(), 2)
-                Case 0 : open_url(u)
+                Case 0 : If Left(u, 1) = "#" Then cmd_execute(ui_active, "/join " & u) Else open_url(u)
                 Case 1 : vt_clipboard_set(u)
                 End Select
             Else

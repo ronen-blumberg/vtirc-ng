@@ -335,6 +335,7 @@ Private Sub h_message(c As Long, ByRef m As irc_msg, is_notice As Byte, hist As 
                 End If
             Else
                 id = buf_new(c, BK_QUERY, peer, 0)
+                chanset_apply(id)
                 ev_replay_log(id)
             End If
         End If
@@ -376,8 +377,15 @@ Private Sub h_message(c As Long, ByRef m As irc_msg, is_notice As Byte, hist As 
     If self = 0 AndAlso hist = 0 Then
         If flags And LF_HIGHLIGHT Then
             ev_notify(id, NK_HIGHLIGHT, from & IIf(is_chan, " in " & target, ""), text)
+            extras_on_highlight(c, id, from, IIf(is_action, "* " & from & " " & text, text), t)
         ElseIf is_chan = 0 AndAlso server_src = 0 AndAlso is_notice = 0 Then
             ev_notify(id, NK_QUERY, "Message from " & from, text)
+        ElseIf is_chan AndAlso bufs(id).notify_mode = 1 Then
+            ev_notify(id, NK_HIGHLIGHT, from & " in " & target, text)
+        End If
+        If server_src = 0 Then
+            url_log_scan(c, conns(c).name & "/" & IIf(is_chan, target, from), from, text)
+            trig_fire(c, id, IIf(is_action, "action", IIf(is_notice, "notice", "text")), m.src, IIf(is_chan, target, from), text)
         End If
     End If
 End Sub
@@ -396,6 +404,7 @@ Private Sub h_join(c As Long, ByRef m As irc_msg, hist As Byte)
         Dim id As Long = buf_find_kind(c, BK_CHANNEL, chan)
         If id < 0 Then
             id = buf_new(c, BK_CHANNEL, chan, want_focus)
+            chanset_apply(id)
             ev_replay_log(id)
         ElseIf want_focus Then
             ui_request_focus(id)
@@ -422,6 +431,7 @@ Private Sub h_join(c As Long, ByRef m As irc_msg, hist As Byte)
     Dim uh As String = h_userhost(m)
     ev_line(id2, LK_JOIN, LF_NOISE Or IIf(hist, LF_HISTORY, 0), "-->", nick, _
             nick & IIf(Len(uh) > 0, " (" & uh & ")", "") & " has joined " & chan, m.t)
+    If hist = 0 Then trig_fire(c, id2, "join", m.src, chan, "")
 End Sub
 
 Private Sub h_part(c As Long, ByRef m As irc_msg, hist As Byte)
@@ -450,6 +460,7 @@ Private Sub h_part(c As Long, ByRef m As irc_msg, hist As Byte)
     Dim uh As String = h_userhost(m)
     ev_line(id, LK_PART, fl, "<--", m.nick, m.nick & IIf(Len(uh) > 0, " (" & uh & ")", "") & " has left " & chan & _
             IIf(Len(reason) > 0, " (" & reason & ")", ""), m.t)
+    If hist = 0 Then trig_fire(c, id, "part", m.src, chan, reason)
 End Sub
 
 Private Sub h_kick(c As Long, ByRef m As irc_msg)
@@ -474,6 +485,7 @@ Private Sub h_kick(c As Long, ByRef m As irc_msg)
     ui_on_nicklist(id)
     ev_line(id, LK_KICK, 0, "<--", m.nick, m.nick & " has kicked " & victim & " from " & chan & _
             IIf(Len(reason) > 0, " (" & reason & ")", ""), m.t)
+    trig_fire(c, id, "kick", m.src, chan, victim & " " & reason)
 End Sub
 
 Private Sub h_quit(c As Long, ByRef m As irc_msg, hist As Byte)
@@ -496,6 +508,7 @@ Private Sub h_quit(c As Long, ByRef m As irc_msg, hist As Byte)
             ev_line(i, LK_QUIT, 0, "<--", m.nick, txt, m.t)
         End If
     Next i
+    If hist = 0 Then trig_fire(c, ev_status_buf(c), "quit", m.src, "", reason)
 End Sub
 
 Private Sub h_nick(c As Long, ByRef m As irc_msg)
@@ -523,6 +536,7 @@ Private Sub h_nick(c As Long, ByRef m As irc_msg)
         End If
     Next i
     h_rename_query(c, oldn, newn)
+    If self = 0 Then trig_fire(c, ev_status_buf(c), "nick", m.src, "", newn)
 End Sub
 
 ' Apply a channel MODE change to the user list and mode letters.
@@ -621,6 +635,7 @@ Private Sub h_invite(c As Long, ByRef m As irc_msg)
         Dim id As Long = ev_front_buf(c)
         ev_line(id, LK_INVITE, LF_HIGHLIGHT, "--", m.nick, m.nick & " invites you to " & chan & "  (type /join " & chan & ")", m.t)
         ev_notify(id, NK_INVITE, "Invitation", m.nick & " invites you to " & chan)
+        trig_fire(c, id, "invite", m.src, chan, chan)
     Else
         Dim id2 As Long = buf_find_kind(c, BK_CHANNEL, chan)
         If id2 >= 0 Then ev_line(id2, LK_INVITE, 0, "--", m.nick, m.nick & " invited " & who & " to " & chan, m.t)
@@ -937,10 +952,8 @@ Private Sub h_numeric(c As Long, num As Long, ByRef m As irc_msg)
         conns(c).sasl_state = 3
         ev_error(c, "SASL: " & irc_last(m))
         h_cap_end(c)
-    Case 730
-        ev_status(c, "Online: " & irc_last(m))
-    Case 731
-        ev_status(c, "Offline: " & irc_last(m))
+    Case 730, 731, 303
+        friends_numeric(c, num, m)
     Case 400 To 599
         h_error_numeric(c, num, m)
     Case Else

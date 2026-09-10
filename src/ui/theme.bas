@@ -51,6 +51,37 @@ End Type
 
 Dim Shared th As ui_theme
 
+' Colour by number (0-15) or name; -1 if unknown.
+Function color_from_name(ByRef v As String) As Long
+    Dim t As String = LCase(Trim(v))
+    If Len(t) > 0 AndAlso t[0] >= 48 AndAlso t[0] <= 57 Then
+        Dim n As Long = str_to_int(t, -1)
+        If n >= 0 AndAlso n <= 15 Then Return n
+        Return -1
+    End If
+    Select Case t
+    Case "black" : Return 0
+    Case "blue" : Return 1
+    Case "green" : Return 2
+    Case "cyan" : Return 3
+    Case "red" : Return 4
+    Case "magenta" : Return 5
+    Case "brown" : Return 6
+    Case "lightgrey", "lightgray", "grey", "gray" : Return 7
+    Case "darkgrey", "darkgray" : Return 8
+    Case "brightblue" : Return 9
+    Case "brightgreen" : Return 10
+    Case "brightcyan" : Return 11
+    Case "brightred" : Return 12
+    Case "brightmagenta", "pink" : Return 13
+    Case "yellow" : Return 14
+    Case "white" : Return 15
+    End Select
+    Return -1
+End Function
+
+Declare Sub theme_overrides()
+
 Sub theme_apply(which As Long)
     With th
         Select Case which
@@ -106,6 +137,7 @@ Sub theme_apply(which As Long)
         End If
         .nick_n = 8
     End With
+    theme_overrides()
     ' libvt TUI widgets (menus, dialogs) follow the bar colours
     vt_tui_theme(th.fg, th.bg, VT_WHITE, VT_BLUE, th.bar_fg, th.bar_bg, _
                  VT_BLACK, VT_LIGHT_GREY, VT_BLACK, VT_LIGHT_GREY, th.input_fg, th.input_bg)
@@ -159,3 +191,58 @@ Function mirc_to_vga(idx As Long, fallback As UByte) As UByte
     If idx >= 16 AndAlso idx <= 98 Then Return rgb_to_vga(mirc_ext_rgb(idx))
     Return fallback
 End Function
+
+' [theme] section: element = colour (number 0-15 or name), e.g.  bg=black  own=yellow
+Sub theme_overrides()
+    Dim i As Long
+    For i = 0 To cfg_ini.cnt - 1
+        If LCase(cfg_ini.ents(i).sec) <> "theme" Then Continue For
+        Dim v As Long = color_from_name(cfg_ini.ents(i).value)
+        If v < 0 Then Continue For
+        With th
+            Select Case LCase(cfg_ini.ents(i).key)
+            Case "bg" : .bg = v
+            Case "fg" : .fg = v
+            Case "stamp" : .stamp = v
+            Case "own" : .own = v
+            Case "action" : .action = v
+            Case "notice" : .notice = v
+            Case "join" : .joinc = v
+            Case "part" : .partc = v
+            Case "event" : .event = v
+            Case "server" : .server = v
+            Case "info" : .info = v
+            Case "error" : .errc = v
+            Case "whois" : .whois = v
+            Case "ctcp" : .ctcp = v
+            Case "history" : .history = v
+            Case "highlight_fg" : .hl_fg = v
+            Case "highlight_bg" : .hl_bg = v
+            Case "link" : .link = v
+            Case "marker" : .marker = v
+            Case "selection_fg" : .sel_fg = v
+            Case "selection_bg" : .sel_bg = v
+            Case "separator" : .sep = v
+            Case "bar_fg" : .bar_fg = v
+            Case "bar_bg" : .bar_bg = v
+            Case "bar_highlight" : .bar_hi = v
+            Case "input_fg" : .input_fg = v
+            Case "input_bg" : .input_bg = v
+            Case "tree_bg" : .tree_bg = v
+            Case "tree_fg" : .tree_fg = v
+            Case "tree_network" : .tree_net = v
+            Case "tree_active_fg" : .tree_act_fg = v
+            Case "tree_active_bg" : .tree_act_bg = v
+            Case "activity_event" : .act_event = v
+            Case "activity_msg" : .act_msg = v
+            Case "activity_highlight" : .act_hl = v
+            Case "offline" : .off = v
+            Case "nicklist_bg" : .nl_bg = v
+            Case "nicklist_fg" : .nl_fg = v
+            Case "nicklist_op" : .nl_op = v
+            Case "nicklist_voice" : .nl_voice = v
+            Case "nicklist_away" : .nl_away = v
+            End Select
+        End With
+    Next i
+End Sub

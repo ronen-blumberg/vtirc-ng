@@ -13,6 +13,7 @@
 #Include Once "logger.bas"
 #Include Once "events.bas"
 #Include Once "conn.bas"
+#Include Once "extras.bas"
 #Include Once "handlers.bas"
 #Include Once "dcc.bas"
 #Include Once "commands.bas"
@@ -26,6 +27,8 @@ Sub core_init(ByRef cfg_override As String = "")
     ignore_load()
     highlight_load()
     alias_load()
+    trig_load()
+    friends_load()
     cmd_init()
 End Sub
 
@@ -33,5 +36,6 @@ End Sub
 Sub core_poll()
     conn_poll_all()
     dcc_poll()
+    friends_poll()
     net_reap_zombies()
 End Sub

@@ -121,6 +121,28 @@ Function text_find_urls(cells() As ucell, n As Long, urls() As String) As Long
         ' start of a word?
         If i = 0 OrElse cells(i - 1).cp = 32 OrElse cells(i - 1).cp = Asc("(") OrElse cells(i - 1).cp = Asc("<") OrElse _
            cells(i - 1).cp = Asc("""") OrElse cells(i - 1).cp = Asc("'") Then
+            ' #channel names: clicking joins the channel
+            If cells(i).cp = Asc("#") AndAlso i + 1 < n AndAlso cells(i + 1).cp > 32 AndAlso cells(i + 1).cp <> Asc("#") _
+               AndAlso InStr(",.;:!?)", Chr(IIf(cells(i + 1).cp < 128, cells(i + 1).cp, 65))) = 0 Then
+                Dim cj As Long = i + 1
+                While cj < n AndAlso cells(cj).cp > 32 AndAlso cells(cj).cp <> Asc(",") AndAlso cells(cj).cp <> 7
+                    cj += 1
+                Wend
+                While cj > i + 1 AndAlso cells(cj - 1).cp < 128 AndAlso InStr(".;:!?)'" & Chr(34), Chr(cells(cj - 1).cp)) > 0
+                    cj -= 1
+                Wend
+                If cj - i >= 2 Then
+                    cnt += 1
+                    If cnt > UBound(urls) Then ReDim Preserve urls(0 To cnt * 2 + 3)
+                    urls(cnt) = cells_text(cells(), i, cj)
+                    Dim ck As Long
+                    For ck = i To cj - 1
+                        cells(ck).url = cnt
+                    Next ck
+                    i = cj
+                    Continue While
+                End If
+            End If
             Dim pre As String = LCase(cells_text(cells(), i, IIf(i + 8 < n, i + 8, n)))
             If Left(pre, 7) = "http://" OrElse Left(pre, 8) = "https://" OrElse Left(pre, 4) = "www." OrElse _
                Left(pre, 6) = "ftp://" OrElse Left(pre, 6) = "irc://" OrElse Left(pre, 7) = "ircs://" Then

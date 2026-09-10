@@ -9,6 +9,7 @@
 
 Declare Sub irc_handle_line(c As Long, ByRef ln As String)
 Declare Sub cmd_execute(buf_id As Long, ByRef text As String)
+Declare Sub friends_on_ready(c As Long)
 
 ' IRCv3 capabilities we request when offered
 Const CAPS_WANTED = " multi-prefix away-notify account-notify extended-join chghost server-time " & _
@@ -303,6 +304,7 @@ End Sub
 Sub conn_on_ready(c As Long)
     If conns(c).motd_done Then Exit Sub
     conns(c).motd_done = 1
+    friends_on_ready(c)
     Dim ni As Long = conns(c).net_idx
     Dim waited As Byte = 0
     If ni >= 0 Then

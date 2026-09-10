@@ -52,8 +52,17 @@ Dim Shared net_inited As Byte
 Dim Shared net_zombies(Any) As Any Ptr     ' cancelled jobs whose thread may still run
 Dim Shared net_zombie_count As Long
 
+#Ifndef __FB_WIN32__
+    Declare Function crt_signal Cdecl Alias "signal" (ByVal sig As Long, ByVal handler As Any Ptr) As Any Ptr
+#Endif
+
 Sub net_init()
     If net_inited Then Exit Sub
+    #Ifndef __FB_WIN32__
+        ' writing to a socket the peer closed must return an error, not kill
+        ' the program (SIGPIPE = 13, SIG_IGN = 1)
+        crt_signal(13, CPtr(Any Ptr, 1))
+    #Endif
     vt_net_init()
     net_mutex  = MutexCreate()
     net_inited = 1

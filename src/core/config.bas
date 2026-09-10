@@ -81,6 +81,7 @@ Type app_settings
     hide_joinpart As Byte       ' 0 show, 1 smart filter, 2 hide all
     smart_minutes As Long
     whois_to_active As Byte
+    hl_window     As Byte       ' copy highlights into a (highlights) window
     scrollback    As Long
     unicode_font  As Byte       ' load fonts/vtirc-ng.vtuf if present
     ' behaviour
@@ -145,6 +146,7 @@ Sub settings_defaults()
         .show_topic = 1 : .colored_nicks = 1 : .strip_colors = 0
         .hide_joinpart = 0 : .smart_minutes = 10
         .whois_to_active = 1
+        .hl_window = 1
         .scrollback = 2000
         .unicode_font = 1
         .reconnect = 1 : .reconnect_max_s = 300 : .rejoin_on_kick = 0
@@ -343,6 +345,7 @@ Sub settings_from_ini()
         .hide_joinpart = _GI("hide_joinpart", .hide_joinpart)
         .smart_minutes = _GI("smart_minutes", .smart_minutes)
         .whois_to_active = _GI("whois_to_active", .whois_to_active)
+        .hl_window = _GI("hl_window", .hl_window)
         .scrollback = _GI("scrollback", .scrollback)
         .unicode_font = _GI("unicode_font", .unicode_font)
         .reconnect = _GI("reconnect", .reconnect)
@@ -400,6 +403,7 @@ Sub settings_to_ini()
         _S("show_topic", int_str(.show_topic)) : _S("colored_nicks", int_str(.colored_nicks))
         _S("strip_colors", int_str(.strip_colors)) : _S("hide_joinpart", int_str(.hide_joinpart))
         _S("smart_minutes", int_str(.smart_minutes)) : _S("whois_to_active", int_str(.whois_to_active))
+        _S("hl_window", int_str(.hl_window))
         _S("scrollback", int_str(.scrollback)) : _S("unicode_font", int_str(.unicode_font))
         _S("reconnect", int_str(.reconnect)) : _S("reconnect_max_s", int_str(.reconnect_max_s))
         _S("rejoin_on_kick", int_str(.rejoin_on_kick)) : _S("ping_timeout_s", int_str(.ping_timeout_s))
