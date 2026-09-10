@@ -326,14 +326,38 @@ The dispatcher is **table-driven**: one table holds each command's name, minimum
 
 ---
 
-## 8. Decisions needed before starting
+## 8. Decisions (answered 2026-09-10)
 
-1. **Non-Latin text:** is showing Hebrew, Cyrillic or emoji required? If yes, the libvt Unicode work (Phase 5) moves up. Storing text as UTF-8 in Phase 0 is needed either way.
-2. **libvt:** keep using the system-installed copy, **vendor a fork** into this repo (recommended, since TLS verification, IPv6 and Unicode all need changes), or send changes upstream?
-3. **Scripting:** are aliases, perform lists and triggers (recommended) enough, or is embedded Lua a requirement?
-4. **DCC:** needed (file transfer carries risk and needs NAT/port settings), or leave it out of 2.0?
-5. **Config location:** per-user folders plus portable mode (recommended), or always next to the exe as today?
-6. **FreeBASIC version:** keep 1.10.1 as the minimum, or move to 1.20 (the version installed locally)?
+The project is named **vtirc-ng**, kept apart from the original vtirc, which stays as it is for preservation.
+
+1. **Non-Latin text:** yes, required. The libvt Unicode work moved into Phase 0 and is done.
+2. **libvt:** vendored into `vt/`, with vtirc-ng's extensions (see `vt/vt_uni.bas`).
+3. **Scripting:** aliases, perform lists and triggers are enough. Lua is optional.
+4. **DCC:** yes, in scope.
+5. **Config location:** per-user folders plus portable mode.
+6. **FreeBASIC:** 1.10.1 (`/usr/local/bin/fbc`; win32 via `fbc32.exe` under wine).
+
+Environment limits:
+- Only GNU Unifont was approved for download.
+- So there's no Ergo server: integration tests use a scripted fake IRC server (`tests/fakeircd.py`).
+- There's no mbedTLS source: TLS uses certificate pinning only, with no CA-chain checking and no SASL EXTERNAL.
+- Windows builds use the existing 32-bit `SDL2.dll` in `deps/win32/`.
+
+Since the whole program gets rewritten on the new architecture, the 1.23 bugs from 1.2 are fixed by the rewrite rather than patched in the old code.
+
+## 8a. Progress
+
+- [x] 0.1 Build scripts (`build/build.sh`, `build/build.bat`), `-arch native` removed, libvt vendored
+- [x] 0.2 libvt Unicode extension, Unifont fonts, display-width tables
+- [x] 0.3 Util modules (UTF-8, width, bidi, INI config, paths, base64, wildcards) + unit tests
+- [ ] 0.4 IRC core (parser, casemap, ISUPPORT, transport+threads+TLS, conn state machine, sendq, CAP/SASL, handlers, CTCP, buffers, events, logging) + fake-server integration tests
+- [ ] 0.5 Command table and full command set
+- [ ] 1.x UI: layout, window tree, nick list, topic bar, UTF-8/bidi input line, status bar, selection/copy, menus, dialogs
+- [ ] 2.x Multi-server UI, network list, config migration
+- [ ] 3.x Highlights, ignore, lastlog/search, smart filter, URL list, notifications, themes
+- [ ] 4.x Aliases, perform, triggers, away log, channel-mode dialog
+- [ ] 5.x DCC, SOCKS5/HTTP proxy, IPv6
+- [ ] 6.x Release packaging, docs, CLAUDE.md
 
 ## 9. Suggested first steps
 
