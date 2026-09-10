@@ -87,6 +87,8 @@ Type irc_buffer
     ' channel state
     users(Any)  As irc_user
     user_count  As Long
+    uhash(Any)  As Long           ' lnick -> index + 1 (open addressing), 0 = empty
+    uhash_mask  As Long
     sorted(Any) As Long           ' display order (indices into users)
     sort_ok     As Byte
     names_pending As Byte         ' 353 replies replace the list on the next reply
@@ -165,6 +167,7 @@ Function buf_new(conn_id As Long, kind As Long, ByRef nm As String, focus As Byt
         .next_serial = 1
         Erase .users
         Erase .sorted
+        Erase .uhash
         .user_count = 0
         .sort_ok = 0
         .names_pending = 0
@@ -188,6 +191,7 @@ Sub buf_close(id As Long)
         Erase .hist
         Erase .users
         Erase .sorted
+        Erase .uhash
         .user_count = 0
         .hist_count = 0
         .name = ""
@@ -214,6 +218,7 @@ Sub buf_set_casemap(conn_id As Long, cm As Long)
             For u = 0 To bufs(i).user_count - 1
                 bufs(i).users(u).lnick = irc_lc(bufs(i).users(u).nick, cm)
             Next u
+            Erase bufs(i).uhash           ' rebuilt on the next lookup
         End If
     Next i
 End Sub
@@ -267,14 +272,75 @@ End Sub
 ' -----------------------------------------------------------------------------
 ' Channel users
 ' -----------------------------------------------------------------------------
-Function user_find(id As Long, ByRef nick As String) As Long
-    If buf_valid(id) = 0 Then Return -1
-    Dim ln As String = irc_lc(nick, bufs(id).cm)
+' ---- user index: hash of the case-folded nick -> position in users()
+Private Function uh_code(ByRef s As String) As ULong
+    Dim h As ULong = 2166136261UL
     Dim i As Long
-    For i = 0 To bufs(id).user_count - 1
-        If bufs(id).users(i).lnick = ln Then Return i
+    For i = 0 To Len(s) - 1
+        h = (h Xor s[i]) * 16777619UL
     Next i
+    Return h
+End Function
+
+Private Sub uh_put(id As Long, i As Long)
+    With bufs(id)
+        Dim h As Long = uh_code(.users(i).lnick) And .uhash_mask
+        While .uhash(h) <> 0
+            h = (h + 1) And .uhash_mask
+        Wend
+        .uhash(h) = i + 1
+    End With
+End Sub
+
+Private Sub uh_rebuild(id As Long)
+    With bufs(id)
+        Dim sz As Long = 64
+        While sz < .user_count * 2 + 2
+            sz *= 2
+        Wend
+        ReDim .uhash(0 To sz - 1)
+        .uhash_mask = sz - 1
+        Dim i As Long
+        For i = 0 To .user_count - 1
+            uh_put(id, i)
+        Next i
+    End With
+End Sub
+
+' Hash slot holding the user with case-folded nick ln, or -1.
+Private Function uh_slot(id As Long, ByRef ln As String) As Long
+    With bufs(id)
+        If UBound(.uhash) < 0 Then uh_rebuild(id)
+        Dim h As Long = uh_code(ln) And .uhash_mask
+        While .uhash(h) <> 0
+            Dim k As Long = .uhash(h) - 1
+            If k < .user_count AndAlso .users(k).lnick = ln Then Return h
+            h = (h + 1) And .uhash_mask
+        Wend
+    End With
     Return -1
+End Function
+
+' Remove a hash slot and re-seat the rest of its probe cluster.
+Private Sub uh_delete_slot(id As Long, slot As Long)
+    With bufs(id)
+        .uhash(slot) = 0
+        Dim j As Long = (slot + 1) And .uhash_mask
+        While .uhash(j) <> 0
+            Dim k As Long = .uhash(j) - 1
+            .uhash(j) = 0
+            uh_put(id, k)
+            j = (j + 1) And .uhash_mask
+        Wend
+    End With
+End Sub
+
+Function user_find(id As Long, ByRef nick As String) As Long
+    If buf_valid(id) = 0 OrElse bufs(id).user_count = 0 Then Return -1
+    Dim ln As String = irc_lc(nick, bufs(id).cm)
+    Dim sl As Long = uh_slot(id, ln)
+    If sl < 0 Then Return -1
+    Return bufs(id).uhash(sl) - 1
 End Function
 
 ' Order the characters of pfx by their rank in prefix_chars ("~&@%+").
@@ -314,6 +380,11 @@ Function user_add(id As Long, ByRef nick As String, ByRef pfx As String = "", _
             .users(i).account = ""
             .users(i).away = 0
             .users(i).last_spoke = 0
+            If UBound(.uhash) < 0 OrElse .user_count * 2 > .uhash_mask + 1 Then
+                uh_rebuild(id)
+            Else
+                uh_put(id, i)
+            End If
         Else
             .users(i).nick = nick
             If Len(pfx) > 0 Then .users(i).pfx = pfx
@@ -325,17 +396,25 @@ Function user_add(id As Long, ByRef nick As String, ByRef pfx As String = "", _
     Return i
 End Function
 
+' Removal moves the last user into the freed position (display order comes
+' from sorted(), so the order of users() does not matter).
 Function user_remove(id As Long, ByRef nick As String) As Byte
-    Dim i As Long = user_find(id, nick)
-    If i < 0 Then Return 0
+    If buf_valid(id) = 0 OrElse bufs(id).user_count = 0 Then Return 0
+    Dim ln As String = irc_lc(nick, bufs(id).cm)
+    Dim sl As Long = uh_slot(id, ln)
+    If sl < 0 Then Return 0
     With bufs(id)
-        Dim k As Long
-        For k = i To .user_count - 2
-            .users(k) = .users(k + 1)
-        Next k
+        Dim i As Long = .uhash(sl) - 1
+        uh_delete_slot(id, sl)
+        Dim last As Long = .user_count - 1
+        If i <> last Then
+            Dim sl2 As Long = uh_slot(id, .users(last).lnick)
+            .users(i) = .users(last)
+            If sl2 >= 0 Then .uhash(sl2) = i + 1
+        End If
+        .users(last).nick = "" : .users(last).lnick = "" : .users(last).pfx = ""
+        .users(last).user = "" : .users(last).host = "" : .users(last).account = ""
         .user_count -= 1
-        .users(.user_count).nick = "" : .users(.user_count).lnick = "" : .users(.user_count).pfx = ""
-        .users(.user_count).user = "" : .users(.user_count).host = "" : .users(.user_count).account = ""
         .sort_ok = 0
     End With
     Return 1
@@ -345,15 +424,20 @@ Sub user_clear(id As Long)
     If buf_valid(id) = 0 Then Exit Sub
     Erase bufs(id).users
     Erase bufs(id).sorted
+    Erase bufs(id).uhash
     bufs(id).user_count = 0
     bufs(id).sort_ok = 0
 End Sub
 
 Function user_rename(id As Long, ByRef old_nick As String, ByRef new_nick As String) As Byte
-    Dim i As Long = user_find(id, old_nick)
-    If i < 0 Then Return 0
+    If buf_valid(id) = 0 OrElse bufs(id).user_count = 0 Then Return 0
+    Dim sl As Long = uh_slot(id, irc_lc(old_nick, bufs(id).cm))
+    If sl < 0 Then Return 0
+    Dim i As Long = bufs(id).uhash(sl) - 1
+    uh_delete_slot(id, sl)
     bufs(id).users(i).nick  = new_nick
     bufs(id).users(i).lnick = irc_lc(new_nick, bufs(id).cm)
+    uh_put(id, i)
     bufs(id).sort_ok = 0
     Return 1
 End Function

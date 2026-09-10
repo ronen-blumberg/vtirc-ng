@@ -369,3 +369,63 @@ Scope
     cmd_execute(tb, "/trigger del 1")
     check_int(trig_count, 0, "trigger removed")
 End Scope
+
+' ---------------------------------------------------------------- robustness
+t_begin("fuzz")
+Scope
+    ' random and malformed lines must never crash the handlers (-exx build)
+    Dim cmdsl(0 To 29) As String = { "PRIVMSG", "NOTICE", "JOIN", "PART", "KICK", "MODE", "TOPIC", "NICK", "QUIT", "INVITE", _
+        "001", "005", "301", "311", "319", "324", "332", "333", "353", "366", "367", "322", "433", "474", "900", "904", _
+        "CAP", "BATCH", "AWAY", "730" }
+    Dim frag(0 To 11) As String = { "#trig", "testnick", "", ":", "::", "*", "+o-v", "@#trig", Chr(1) & "ACTION", _
+        Chr(1) & "DCC SEND x 1 2", "=", !"שלום" }
+    Randomize 42
+    Dim i As Long
+    For i = 1 To 20000
+        Dim ln As String
+        If Rnd < 0.3 Then ln = "@time=" & IIf(Rnd < 0.5, "garbage", "2026-01-01T00:00:00Z") & ";a=b "
+        If Rnd < 0.9 Then ln &= ":" & frag(Int(Rnd * 12)) & IIf(Rnd < 0.5, "!u@h", "") & " "
+        ln &= cmdsl(Int(Rnd * 30))
+        Dim np As Long = Int(Rnd * 8)
+        Dim k As Long
+        For k = 1 To np
+            ln &= " " & frag(Int(Rnd * 12))
+        Next k
+        If Rnd < 0.5 Then ln &= " :" & frag(Int(Rnd * 12)) & " " & frag(Int(Rnd * 12))
+        If Rnd < 0.05 Then ln = String(Int(Rnd * 20), Chr(Int(Rnd * 256)))
+        irc_handle_line(tc, ln)
+    Next i
+    check(conn_valid(tc), "20000 random lines handled")
+    ' fuzzing renamed us and changed server settings: restore them
+    conns(tc).nick = "testnick"
+    conns(tc).chantypes = "#"
+    conns(tc).prefix_modes = "qaohv" : conns(tc).prefix_chars = "~&@%+"
+End Scope
+
+t_begin("scale")
+Scope
+    t_srv(":testnick!u@host.example JOIN #big")
+    Dim bb As Long = buf_find_kind(tc, BK_CHANNEL, "#big")
+    Dim t0 As Double = clock_s()
+    Dim i As Long
+    Dim ln As String
+    For i = 1 To 5000
+        ln &= IIf(i Mod 10 = 0, "@", "") & "user" & i & " "
+        If i Mod 100 = 0 Then
+            irc_handle_line(tc, ":srv 353 testnick = #big :" & ln)
+            ln = ""
+        End If
+    Next i
+    irc_handle_line(tc, ":srv 366 testnick #big :End of /NAMES list.")
+    Dim t1 As Double = clock_s()
+    check_int(bufs(bb).user_count, 5000, "5000-user channel loaded")
+    For i = 1 To 1000
+        irc_handle_line(tc, ":user" & i & "!u@h QUIT :bye")
+    Next i
+    Dim t2 As Double = clock_s()
+    check_int(bufs(bb).user_count, 4000, "1000 quits processed")
+    check(user_find(bb, "user1001") >= 0 AndAlso user_find(bb, "user999") < 0 AndAlso user_find(bb, "USER5000") >= 0, "index consistent after removals")
+    Print "     scale: names 5000 users " & CLng((t1 - t0) * 1000) & " ms, 1000 quits " & CLng((t2 - t1) * 1000) & " ms"
+    check(t1 - t0 < 2, "big NAMES list loads quickly")
+    check(t2 - t1 < 2, "quits in a big channel are fast")
+End Scope
