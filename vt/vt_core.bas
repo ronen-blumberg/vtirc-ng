@@ -25,12 +25,13 @@ End Function
 ' -----------------------------------------------------------------------------
 ' Internal: push one key event into the circular buffer
 ' -----------------------------------------------------------------------------
-Private Sub vt_internal_key_push(evt As ULong)
+Private Sub vt_internal_key_push(evt As ULong, cp As ULong = 0)
     If vt_internal.key_count >= _VT_KEY_BUFFER_SIZE Then
         vt_internal.key_read  = (vt_internal.key_read + 1) Mod _VT_KEY_BUFFER_SIZE
         vt_internal.key_count -= 1
     End If
     vt_internal.key_buf(vt_internal.key_write) = evt
+    vt_internal.key_cp(vt_internal.key_write)  = cp
     vt_internal.key_write = (vt_internal.key_write + 1) Mod _VT_KEY_BUFFER_SIZE
     vt_internal.key_count += 1
 End Sub
@@ -170,10 +171,11 @@ Sub vt_pump()
             End If
         End If
         If rep_due AndAlso vt_internal.rep_rate > 0 AndAlso vt_internal.rep_initial > 0 Then
-            keyrec = vt_internal.key_buf((vt_internal.key_write + _VT_KEY_BUFFER_SIZE - 1) _
-                     Mod _VT_KEY_BUFFER_SIZE)
+            Dim rep_slot As Long = (vt_internal.key_write + _VT_KEY_BUFFER_SIZE - 1) _
+                                   Mod _VT_KEY_BUFFER_SIZE
+            keyrec = vt_internal.key_buf(rep_slot)
             keyrec = keyrec Or (1UL Shl 28)
-            vt_internal_key_push(keyrec)
+            vt_internal_key_push(keyrec, vt_internal.key_cp(rep_slot))
         End If
     End If
 
@@ -294,38 +296,68 @@ Sub vt_pump()
                 ' 3-byte (0xE0..0xEF lead) : same.
                 ' 4-byte or unmappable    : discard silently.
                 ' Alt+letter already handled in _VT_DRV_KEYDOWN above.
-                Dim ti_ptr As UByte Ptr = CPtr(UByte Ptr, @evt.text.text)
-                Dim ti_b0  As UByte     = ti_ptr[0]
-                Dim ti_cp  As Long      = 0
-                Dim ch     As UByte     = 0
+                ' vtirc-ng: every character of the event is decoded (IME commits
+                ' can carry several) including 4-byte sequences. Characters with a
+                ' CP437 glyph arrive as before; others arrive as VT_KEY_UNICODE
+                ' keys whose codepoint vt_key_cp() returns.
+                Dim ti_ptr   As UByte Ptr = CPtr(UByte Ptr, @evt.text.text)
+                Dim ti_pos   As Long      = 0
+                Dim ti_first As Byte      = 1
+                Do While ti_ptr[ti_pos] <> 0 AndAlso ti_pos < 32
+                    Dim ti_b0  As UByte = ti_ptr[ti_pos]
+                    Dim ti_cp  As ULong = 0
+                    Dim ti_len As Long  = 1
+                    Dim ch     As UByte = 0
+                    If ti_b0 < &h80 Then
+                        ti_cp = ti_b0
+                    ElseIf (ti_b0 And &hE0) = &hC0 Then
+                        ti_cp = ((CULng(ti_b0) And &h1F) Shl 6) Or (CULng(ti_ptr[ti_pos + 1]) And &h3F)
+                        ti_len = 2
+                    ElseIf (ti_b0 And &hF0) = &hE0 Then
+                        ti_cp = ((CULng(ti_b0) And &h0F) Shl 12) _
+                             Or ((CULng(ti_ptr[ti_pos + 1]) And &h3F) Shl 6) _
+                             Or  (CULng(ti_ptr[ti_pos + 2]) And &h3F)
+                        ti_len = 3
+                    ElseIf (ti_b0 And &hF8) = &hF0 Then
+                        ti_cp = ((CULng(ti_b0) And &h07) Shl 18) _
+                             Or ((CULng(ti_ptr[ti_pos + 1]) And &h3F) Shl 12) _
+                             Or ((CULng(ti_ptr[ti_pos + 2]) And &h3F) Shl 6) _
+                             Or  (CULng(ti_ptr[ti_pos + 3]) And &h3F)
+                        ti_len = 4
+                    End If
+                    ti_pos += ti_len
 
-                If ti_b0 < &h80 Then
-                    ch = ti_b0
-                ElseIf (ti_b0 And &hE0) = &hC0 Then
-                    ' 2-byte UTF-8
-                    ti_cp = ((CLng(ti_b0) And &h1F) Shl 6) Or (CLng(ti_ptr[1]) And &h3F)
-                    ch = vt_internal_unicode_to_cp437_2t(ti_cp)
-                ElseIf (ti_b0 And &hF0) = &hE0 Then
-                    ' 3-byte UTF-8
-                    ti_cp = ((CLng(ti_b0) And &h0F) Shl 12) _
-                         Or ((CLng(ti_ptr[1]) And &h3F) Shl 6) _
-                         Or  (CLng(ti_ptr[2]) And &h3F)
-                    ch = vt_internal_unicode_to_cp437_3t(ti_cp)
-                End If
+                    If ti_cp < 128 Then
+                        ch = ti_cp
+                    ElseIf ti_cp < &h800 Then
+                        ch = vt_internal_unicode_to_cp437_2t(ti_cp)
+                    ElseIf ti_cp < &h10000 Then
+                        ch = vt_internal_unicode_to_cp437_3t(ti_cp)
+                    End If
+                    ' keep CP437 only for exact glyph matches (the table also has
+                    ' look-alike approximations such as a star mapped to '*')
+                    If ti_cp >= 128 AndAlso vt_uni_to_cp437(ti_cp) = 0 Then ch = 0
 
-                If ch >= 32 AndAlso ch <> 127 Then
-                    keyrec = CULng(ch) Or (CULng(vt_internal.rep_scan) Shl 16)
+                    If ti_cp < 32 OrElse ti_cp = 127 Then Continue Do
+                    If ch >= 32 AndAlso ch <> 127 Then
+                        keyrec = CULng(ch) Or (CULng(vt_internal.rep_scan) Shl 16)
+                    Else
+                        keyrec = CULng(VT_KEY_UNICODE) Shl 16
+                    End If
                     modstate = _VT_DRV_GetModState()
                     If (modstate And _VT_DRVKMOD_SHIFT) Then keyrec = keyrec Or (1UL Shl 29)
                     If (modstate And _VT_DRVKMOD_CTRL)  Then keyrec = keyrec Or (1UL Shl 30)
                     If (modstate And _VT_DRVKMOD_ALT)   Then keyrec = keyrec Or (1UL Shl 31)
-                    If vt_internal.key_count > 0 Then
+                    ' the first character replaces the KEYDOWN record of the key
+                    ' that produced it (same as upstream libvt)
+                    If ti_first AndAlso vt_internal.key_count > 0 Then
                         vt_internal.key_write = (vt_internal.key_write + _VT_KEY_BUFFER_SIZE - 1) _
                                                 Mod _VT_KEY_BUFFER_SIZE
                         vt_internal.key_count -= 1
                     End If
-                    vt_internal_key_push(keyrec)
-                End If
+                    ti_first = 0
+                    vt_internal_key_push(keyrec, ti_cp)
+                Loop
 
            Case _VT_DRV_WINDOWEVENT
                If evt.window.event = _VT_DRV_WINDOWEVENT_RESIZED Then
@@ -536,9 +568,11 @@ Private Sub vt_internal_shutdown()
         End If
     Next sl
     vt_internal.cells = 0
+    vt_uni_ext_free()
+    vt_uni_tex_release()
 
     If vt_internal.sb_cells <> 0 Then DeAllocate vt_internal.sb_cells : vt_internal.sb_cells = 0
-    
+
     if vt_internal.sdl_buffer   <> 0 then _VT_DRV_DestroyTexture( vt_internal.sdl_buffer ) : vt_internal.sdl_buffer   = 0
     If vt_internal.sdl_texture  <> 0 Then _VT_DRV_DestroyTexture(vt_internal.sdl_texture)  : vt_internal.sdl_texture  = 0
     If vt_internal.sdl_renderer <> 0 Then _VT_DRV_DestroyRenderer(vt_internal.sdl_renderer): vt_internal.sdl_renderer = 0
@@ -665,6 +699,7 @@ Private Function vt_internal_init(cols As Long, rows As Long, glyph_w As Long, g
     vt_internal.work_page = 0
     vt_internal.vis_page  = 0
     vt_internal.cells     = vt_internal.page_buf(0)
+    vt_uni_ext_alloc(cols, rows, pages)
 
     ' --- scrollback not allocated here -- call vt_scrollback() after vt_screen() ---
     vt_internal.sb_lines  = 0
@@ -1157,7 +1192,9 @@ Sub vt_present()
     cols    = vt_internal.scr_cols
     rows    = vt_internal.scr_rows
     vis_buf = vt_internal.page_buf(vt_internal.vis_page)
-    
+    Dim vis_end As vt_cell Ptr     = vis_buf + cols * rows
+    Dim ext_vis As vt_ext_cell Ptr = vt_internal.ext_buf(vt_internal.vis_page)
+
     _VT_DRV_SetRenderTarget(vt_internal.sdl_renderer, vt_internal.sdl_buffer)
 
     _VT_DRV_SetRenderDrawColor(vt_internal.sdl_renderer, _
@@ -1234,9 +1271,23 @@ Sub vt_present()
                 last_fg_g = fg_g
                 last_fg_b = fg_b
             End If
-            src_rect.x = (ch Mod 16) * gw
-            src_rect.y = (ch \ 16)   * gh
-            _VT_DRV_RenderCopy(vt_internal.sdl_renderer, vt_internal.sdl_texture, @src_rect, @dst_rect)
+
+            ' vtirc-ng: Unicode glyphs / attributes from the extension plane
+            ' (live cells only -- scrollback rows carry no extension data)
+            Dim uni_done As Byte = 0
+            #Ifndef BACKEND_VT
+            If ext_vis <> 0 AndAlso cell_src >= vis_buf AndAlso cell_src < vis_end Then
+                Dim uni_ep As vt_ext_cell Ptr = ext_vis + (cell_src - vis_buf)
+                If _VT_UNI_EXT_VALID(uni_ep, cell_src) Then
+                    uni_done = vt_uni_draw_cell(cell_src, uni_ep, col_idx, row_idx, fg_r, fg_g, fg_b)
+                End If
+            End If
+            #Endif
+            If uni_done = 0 Then
+                src_rect.x = (ch Mod 16) * gw
+                src_rect.y = (ch \ 16)   * gh
+                _VT_DRV_RenderCopy(vt_internal.sdl_renderer, vt_internal.sdl_texture, @src_rect, @dst_rect)
+            End If
 
         Next col_idx
     Next row_idx
@@ -1384,10 +1435,22 @@ Sub vt_present()
         src_rect.y = (219 \ 16)   * gh
         _VT_DRV_SetTextureColorMod(vt_internal.sdl_texture, mc_bg_r, mc_bg_g, mc_bg_b)
         _VT_DRV_RenderCopy(vt_internal.sdl_renderer, vt_internal.sdl_texture, @src_rect, @dst_rect)
-        src_rect.x = (mc_ch Mod 16) * gw
-        src_rect.y = (mc_ch \ 16)   * gh
-        _VT_DRV_SetTextureColorMod(vt_internal.sdl_texture, mc_fg_r, mc_fg_g, mc_fg_b)
-        _VT_DRV_RenderCopy(vt_internal.sdl_renderer, vt_internal.sdl_texture, @src_rect, @dst_rect)
+        Dim mc_uni As Byte = 0
+        #Ifndef BACKEND_VT
+        If ext_vis <> 0 AndAlso mc_cellptr >= vis_buf AndAlso mc_cellptr < vis_end Then
+            Dim mc_ep As vt_ext_cell Ptr = ext_vis + (mc_cellptr - vis_buf)
+            If _VT_UNI_EXT_VALID(mc_ep, mc_cellptr) AndAlso mc_ep->cp <> 0 AndAlso _
+               (mc_ep->attr And (VT_ATTR_WIDE Or VT_ATTR_WIDE_CONT)) = 0 Then
+                mc_uni = vt_uni_blit(mc_ep->cp, dst_rect.x, dst_rect.y, 1, mc_fg_r, mc_fg_g, mc_fg_b, 0)
+            End If
+        End If
+        #Endif
+        If mc_uni = 0 Then
+            src_rect.x = (mc_ch Mod 16) * gw
+            src_rect.y = (mc_ch \ 16)   * gh
+            _VT_DRV_SetTextureColorMod(vt_internal.sdl_texture, mc_fg_r, mc_fg_g, mc_fg_b)
+            _VT_DRV_RenderCopy(vt_internal.sdl_renderer, vt_internal.sdl_texture, @src_rect, @dst_rect)
+        End If
     End If
     
     _VT_DRV_SetRenderTarget(vt_internal.sdl_renderer, NULL)

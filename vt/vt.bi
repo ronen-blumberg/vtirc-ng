@@ -302,6 +302,27 @@ Type vt_cell
     bg  As ubyte
 End Type
 
+' --- vtirc-ng extension (see vt_uni.bas) -------------------------------------
+' Text attributes for vt_set_cell_ex
+Const VT_ATTR_BOLD      = 1
+Const VT_ATTR_UNDERLINE = 2
+Const VT_ATTR_STRIKE    = 4
+Const VT_ATTR_ITALIC    = 8    ' accepted, currently drawn upright
+Const VT_ATTR_WIDE      = 16   ' left half of a double-width glyph
+Const VT_ATTR_WIDE_CONT = 32   ' right half of a double-width glyph
+' VT_SCAN value of a text key that has no CP437 equivalent (see vt_key_cp)
+Const VT_KEY_UNICODE    = 250
+
+' vt_ext_cell - per-cell Unicode/attribute extension. Valid only while the base
+' cell still holds chk_ch/chk_fg/chk_bg (see vt_uni.bas).
+Type vt_ext_cell
+    cp     As ULong    ' Unicode codepoint to draw instead of ch (0 = draw ch)
+    attr   As UByte    ' VT_ATTR_* flags
+    chk_ch As UByte
+    chk_fg As UByte
+    chk_bg As UByte
+End Type
+
 ' vt_internal_state - complete internal library state
 Type vt_internal_state
     ' --- (SDL) handles ---
@@ -432,6 +453,11 @@ Type vt_internal_state
     ' If set, called on _VT_DRV_QUIT instead of the default shutdown+End.
     ' Return 0 = proceed with shutdown. Return 1 = veto (user handles it).
     close_cb As Function() As Byte
+
+    ' --- vtirc-ng extension (vt_uni.bas) ---
+    ext_buf(_VT_PAGE_SLOTS - 1)     As vt_ext_cell Ptr  ' parallel to page_buf
+    key_cp(_VT_KEY_BUFFER_SIZE - 1) As ULong            ' codepoint per key_buf slot
+    last_key_cp                     As ULong            ' codepoint of last key read
 End Type
 
 Dim Shared vt_internal As vt_internal_state
@@ -439,6 +465,7 @@ Dim Shared vt_internal As vt_internal_state
 #Include Once "vt_font_8x14.bi"
 #Include Once "vt_font_8x16.bi"
 #Include Once "vt_utf8.bas"
+#Include Once "vt_uni.bas"
 #Include Once "vt_core.bas"
 #Include Once "vt_palette.bas"
 #Include Once "vt_pages.bas"

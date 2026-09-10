@@ -59,6 +59,7 @@ Function vt_inkey() As ULong
     vt_internal_present_if_dirty()
     If vt_internal.key_count = 0 Then Return 0
     Dim evt As ULong = vt_internal.key_buf(vt_internal.key_read)
+    vt_internal.last_key_cp = vt_internal.key_cp(vt_internal.key_read)
     vt_internal.key_read  = (vt_internal.key_read + 1) Mod _VT_KEY_BUFFER_SIZE
     vt_internal.key_count -= 1
     Return evt

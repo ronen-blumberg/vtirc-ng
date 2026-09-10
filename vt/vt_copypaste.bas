@@ -66,10 +66,21 @@ Private Sub vt_internal_cp_build_text()
         col_from = IIf(row_idx = r1, c1, eff_left)
         col_to   = IIf(row_idx = r2, c2, eff_right)
 
+        ' vtirc-ng: cells are converted to UTF-8 one by one so Unicode cells
+        ' from the extension plane come out as their real codepoints
         row_str = ""
         For col_idx = col_from To col_to
             cellptr = vt_internal_display_cellptr(col_idx - 1, row_idx - 1, vis_buf)
-            row_str = row_str & Chr(cellptr->ch)
+            Dim cp_ext As vt_ext_cell Ptr = vt_internal.ext_buf(vt_internal.vis_page)
+            If cp_ext <> 0 AndAlso cellptr >= vis_buf AndAlso _
+               cellptr < vis_buf + cols * vt_internal.scr_rows Then
+                cp_ext += (cellptr - vis_buf)
+                If _VT_UNI_EXT_VALID(cp_ext, cellptr) AndAlso cp_ext->cp <> 0 Then
+                    If (cp_ext->attr And VT_ATTR_WIDE_CONT) = 0 Then row_str &= vt_uni_utf8(cp_ext->cp)
+                    Continue For
+                End If
+            End If
+            row_str = row_str & vt_cp437_to_utf8(Chr(cellptr->ch))
         Next col_idx
 
         ' trim trailing spaces from this row segment
@@ -86,7 +97,6 @@ Private Sub vt_internal_cp_build_text()
         End If
     Next row_idx
 
-    clip_Str = vt_cp437_to_utf8(clip_Str)
     _VT_DRV_SetClipboardText(clip_str)
 
     ' reset cp_view_* snapshot after copy

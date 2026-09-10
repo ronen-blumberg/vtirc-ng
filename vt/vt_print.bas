@@ -43,13 +43,19 @@ Private Sub vt_internal_scroll_up()
             memcpy(dst, src, cols * SizeOf(vt_cell))
         End If
     End If
+    ' vtirc-ng: move the extension plane with the cells
+    Dim scr_ext As vt_ext_cell Ptr = vt_internal.ext_buf(vt_internal.work_page)
     If vt_internal.view_left = -1 Then
         ' full-row fast path -- no column viewport active
         For ln = vtop To vbot - 1
             memcpy(vt_internal.cells + (ln * cols), _
                    vt_internal.cells + ((ln + 1) * cols), _
                    cols * SizeOf(vt_cell))
+            If scr_ext <> 0 Then
+                memcpy(scr_ext + (ln * cols), scr_ext + ((ln + 1) * cols), cols * SizeOf(vt_ext_cell))
+            End If
         Next ln
+        If scr_ext <> 0 Then memset(scr_ext + (vbot * cols), 0, cols * SizeOf(vt_ext_cell))
         cellptr = vt_internal.cells + (vbot * cols)
         For ci = 0 To cols - 1
             cellptr[ci].ch = 32
@@ -63,11 +69,13 @@ Private Sub vt_internal_scroll_up()
             src = vt_internal.cells + ((ln + 1) * cols)
             For ci = v_left To v_right
                 dst[ci] = src[ci]
+                If scr_ext <> 0 Then scr_ext[ln * cols + ci] = scr_ext[(ln + 1) * cols + ci]
             Next ci
         Next ln
         ' blank bottom line within column range only
         cellptr = vt_internal.cells + (vbot * cols)
         For ci = v_left To v_right
+            If scr_ext <> 0 Then scr_ext[vbot * cols + ci].cp = 0 : scr_ext[vbot * cols + ci].attr = 0
             cellptr[ci].ch = 32
             cellptr[ci].fg = vt_internal.clr_fg
             cellptr[ci].bg = vt_internal.clr_bg
@@ -111,6 +119,7 @@ Private Sub vt_internal_putch(ch As UByte)
             cellptr->ch = ch
             cellptr->fg = vt_internal.clr_fg
             cellptr->bg = vt_internal.clr_bg
+            vt_uni_ext_clear(vt_internal.cur_col - 1, vt_internal.cur_row - 1)
             vt_internal.dirty = 1
             ' advance cursor
             vt_internal.cur_col += 1
@@ -201,6 +210,7 @@ Sub vt_cls(bg As Long = -1)
         If ci_to > cols - 1 Then ci_to = cols - 1
     End If
 
+    Dim cls_ext As vt_ext_cell Ptr = vt_internal.ext_buf(vt_internal.work_page)
     For row = vtop To vbot
         cellptr = vt_internal.cells + (row * cols)
         For ci = ci_from To ci_to
@@ -208,6 +218,7 @@ Sub vt_cls(bg As Long = -1)
             cellptr[ci].fg = vt_internal.clr_fg
             cellptr[ci].bg = vt_internal.clr_bg
         Next ci
+        If cls_ext <> 0 Then memset(cls_ext + (row * cols + ci_from), 0, (ci_to - ci_from + 1) * SizeOf(vt_ext_cell))
     Next row
 
     ' cursor to top-left of the active viewport (not screen col 1)
@@ -281,6 +292,7 @@ Function vt_width(new_cols As Long, new_rows As Long) As Long
     vt_internal.work_page = 0
     vt_internal.vis_page  = 0
     vt_internal.cells     = vt_internal.page_buf(0)
+    vt_uni_ext_alloc(new_cols, new_rows, vt_internal.num_pages)
 
     ' --- recreate SDL render buffer at new pixel size ---
     If vt_internal.sdl_buffer <> 0 Then
@@ -396,6 +408,7 @@ Sub vt_set_cell(col As Long, row As Long, _
     cellptr->ch = ch
     cellptr->fg = fg
     cellptr->bg = bg
+    vt_uni_ext_clear(col - 1, row - 1)
     vt_internal.dirty = 1
 End Sub
 

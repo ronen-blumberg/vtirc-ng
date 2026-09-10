@@ -64,6 +64,10 @@ Sub vt_pcopy(src As Long, dst As Long)
     
     Dim buf_sz As Long   = vt_internal.scr_cols * vt_internal.scr_rows * SizeOf(vt_cell)
     memcpy(vt_internal.page_buf(dst), vt_internal.page_buf(src), buf_sz)
+    If vt_internal.ext_buf(dst) <> 0 AndAlso vt_internal.ext_buf(src) <> 0 Then
+        memcpy(vt_internal.ext_buf(dst), vt_internal.ext_buf(src), _
+               vt_internal.scr_cols * vt_internal.scr_rows * SizeOf(vt_ext_cell))
+    End If
     vt_internal.dirty = 1
 End Sub
 
