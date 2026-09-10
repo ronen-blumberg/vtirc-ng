@@ -330,6 +330,7 @@ End Sub
 Sub c_me(ByRef x As cmd_ctx)
     If Len(x.target) = 0 Then cx_err(x, "/me works in channel and query windows") : Exit Sub
     If Len(x.args) = 0 Then cx_usage(x) : Exit Sub
+    If bufs(x.buf).kind = BK_DCC Then dcc_chat_send(x.buf, Chr(1) & "ACTION " & x.args & Chr(1)) : Exit Sub
     cmd_say(x, x.target, x.args, LK_ACTION)
 End Sub
 
@@ -1005,6 +1006,12 @@ Sub c_charset(ByRef x As cmd_ctx)
     cx_info(x, "Charset set to " & nm)
 End Sub
 
+Sub c_dcc(ByRef x As cmd_ctx)
+    ' no arguments: the transfers window (UI), else the text commands
+    If Len(Trim(x.args)) = 0 AndAlso ui_command(x.buf, "transfers", "") Then Exit Sub
+    dcc_command(x.c, x.buf, x.args)
+End Sub
+
 Sub c_help(ByRef x As cmd_ctx)
     Dim nm As String = LCase(str_word(x.args, 0))
     If Left(nm, 1) = "/" Then nm = Mid(nm, 2)
@@ -1148,7 +1155,7 @@ Sub cmd_init()
     cmd_reg("msg",        @c_msg,         2, "/msg <nick|#chan> <text>", "Send a private message")
     cmd_reg("query",      @c_query,       1, "/query <nick> [text]", "Open a private conversation window")
     cmd_reg("notice",     @c_notice,      2, "/notice <nick|#chan> <text>", "Send a notice")
-    cmd_reg("me",         @c_me,          2, "/me <action>", "Send an action (* nick does something)")
+    cmd_reg("me",         @c_me,          1, "/me <action>", "Send an action (* nick does something)")
     cmd_reg("describe",   @c_describe,    2, "/describe <target> <action>", "Send an action to another target")
     cmd_reg("say",        @c_say,         2, "/say <text>", "Send text to the current channel or query (even if it starts with /)")
     cmd_reg("amsg",       @c_amsg,        2, "/amsg <text>", "Send a message to all channels on this network")
@@ -1240,5 +1247,6 @@ Sub cmd_init()
     cmd_reg("set",        @c_set,         0, "/set [setting [value]]", "Show or change settings (/set lists them, wildcards allowed)")
     cmd_reg("cert",       @c_cert,        1, "/cert [accept|forget]", "Show or accept this server's TLS certificate pin")
     cmd_reg("charset",    @c_charset,     1, "/charset [utf-8|cp1255|cp1251|cp1252|...]", "Character set for this network")
+    cmd_reg("dcc",        @c_dcc,         0, "/dcc [chat <nick> | send <nick> <file> | get <nick> [file] | close <nick> | list]", "Direct client-to-client chat and file transfer")
     cmd_reg("help",       @c_help,        0, "/help [command]", "List commands or show help for one")
 End Sub

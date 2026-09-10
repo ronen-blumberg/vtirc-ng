@@ -878,3 +878,51 @@ Sub dlg_about()
                 "Glyphs: GNU Unifont (SIL OFL 1.1)." & VT_LF & _
                 "Config: " & path_cfg_dir)
 End Sub
+
+' ---------------------------------------------------------------- DCC transfers
+Sub dlg_dcc()
+    Dim fw As Long = vt_cols() - 8
+    If fw > 100 Then fw = 100
+    Dim fh As Long = 18
+    Dim fx As Long, fy As Long
+    dlg_origin(fw, fh, fx, fy)
+    Dim items(0 To 3) As vt_tui_form_item
+    fi_button(items(), 0, 2, fh - 3, "Accept", 1)
+    fi_button(items(), 1, 13, fh - 3, "Cancel transfer", 2)
+    fi_button(items(), 2, 33, fh - 3, "Open folder", 3)
+    fi_button(items(), 3, fw - 11, fh - 3, "Close", 4)
+    vt_tui_form_offset(items(), fx, fy)
+    Dim st As vt_tui_listbox_state
+    st.last_click_item = -1
+    Dim focused As Long = 0
+    Dim idx(0 To DCC_MAX - 1) As Long
+    dlg_begin()
+    Do
+        Dim shown() As String
+        Dim n As Long = 0
+        Dim i As Long
+        ReDim shown(0 To DCC_MAX - 1)
+        For i = DCC_MAX - 1 To 0 Step -1
+            If dccs(i).alive Then shown(n) = dcc_status_line(i) : idx(n) = i : n += 1
+        Next i
+        If n = 0 Then shown(0) = "(no transfers -- /dcc send <nick> <file>)" : n = 1 : idx(0) = -1
+        ReDim Preserve shown(0 To n - 1)
+        Dim k As ULong = vt_inkey()
+        Dim nav As Byte = IIf(VT_SCAN(k) = VT_KEY_UP OrElse VT_SCAN(k) = VT_KEY_DOWN, 1, 0)
+        vt_tui_listbox_handle(fx + 2, fy + 1, fw - 4, fh - 5, shown(), st, IIf(nav, k, 0))
+        Dim r As Long = vt_tui_form_handle(items(), focused, IIf(nav, 0, k))
+        Dim sel As Long = IIf(st.sel >= 0 AndAlso st.sel < n, idx(st.sel), -1)
+        Select Case r
+        Case 1 : If sel >= 0 Then dcc_accept_idx(sel)
+        Case 2 : If sel >= 0 Then dcc_command(dccs(sel).c, ui_active, "close #" & (sel + 1))
+        Case 3 : open_url(IIf(Len(cfg.dcc_dir) > 0, cfg.dcc_dir, path_dl_dir), 1)
+        Case 4, VT_FORM_CANCEL : Exit Do
+        End Select
+        vt_tui_rect_fill(fx + 1, fy + 1, fw - 2, fh - 2, 32, VT_BLACK, VT_LIGHT_GREY)
+        vt_tui_window(fx, fy, fw, fh, " DCC transfers ", VT_TUI_WIN_SHADOW)
+        ui_listbox_draw(fx + 2, fy + 1, fw - 4, fh - 5, shown(), st)
+        vt_tui_form_draw(items(), focused)
+        vt_sleep(20)
+    Loop
+    dlg_end()
+End Sub

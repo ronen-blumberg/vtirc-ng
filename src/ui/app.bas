@@ -33,8 +33,8 @@ Sub menu_init()
     #EndMacro
     MI("Networks...       F2") : MI("Connect") : MI("Disconnect") : MI("Reconnect") : MI("Away / back") : MI("Quit          Ctrl+Q")
     menu_counts(0) = 6
-    MI("Next window   Ctrl+Tab") : MI("Previous window") : MI("Next active    Alt+A") : MI("Close          Ctrl+W") : MI("Clear") : MI("Search...      Ctrl+F")
-    menu_counts(1) = 6
+    MI("Next window   Ctrl+Tab") : MI("Previous window") : MI("Next active    Alt+A") : MI("Close          Ctrl+W") : MI("Clear") : MI("Search...      Ctrl+F") : MI("DCC transfers...")
+    menu_counts(1) = 7
     MI("Join...        Ctrl+J") : MI("Part") : MI("Channel list...     F4") : MI("Change topic...") : MI("Ban list") : MI("Channel modes")
     menu_counts(2) = 6
     MI("Window tree       F7") : MI("Nick list         F8") : MI("Topic bar") : MI("Timestamps") : MI("Joins/parts: next mode") : MI("Next colour theme")
@@ -107,6 +107,7 @@ Sub menu_action(r As Long)
         Case 6
             Dim s As String = ""
             If dlg_input("Search", "Find lines containing:", s) AndAlso Len(s) > 0 Then cmd_execute(ui_active, "/lastlog " & s)
+        Case 7 : dlg_dcc()
         End Select
     Case MG_CHANNEL
         Select Case it
@@ -205,6 +206,8 @@ Function ui_command_impl(buf As Long, ByRef cmd As String, ByRef args As String)
         dlg_chanlist(IIf(buf_valid(buf), bufs(buf).conn_id, -1)) : Return 1
     Case "about"
         dlg_about() : Return 1
+    Case "transfers"
+        dlg_dcc() : Return 1
     Case "manual"
         dlg_help() : Return 1
     Case "theme"

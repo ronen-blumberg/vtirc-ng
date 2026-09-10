@@ -356,7 +356,7 @@ Since the whole program gets rewritten on the new architecture, the 1.23 bugs fr
 - [ ] 2.x Multi-server UI, network list, config migration
 - [ ] 3.x Highlights, ignore, lastlog/search, smart filter, URL list, notifications, themes
 - [ ] 4.x Aliases, perform, triggers, away log, channel-mode dialog
-- [ ] 5.x DCC, SOCKS5/HTTP proxy, IPv6
+- [x] 5.x DCC, SOCKS5/HTTP proxy, IPv6 (proxies + IPv6 landed with the core)
 - [ ] 6.x Release packaging, docs, CLAUDE.md
 
 ## 9. Suggested first steps

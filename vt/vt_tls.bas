@@ -2,16 +2,17 @@
 
 #pragma once
 
+' vtirc-ng: the library folder is added with #libpath. Upstream libvt used
+' #inclib "fb -L<path>", which also links -lfb -- the non-thread-safe FB
+' runtime -- ahead of -lfbmt and corrupts strings in threaded programs.
+#libpath __PATH__
 #ifdef __FB_WIN32__
-    #define _inclibrelpath( _LibPath ) #inclib __FB_EVAL__("fb -L"__PATH__ _LibPath)
-    _inclibrelpath(".")
     #ifdef __FB_64BIT__
         #inclib "mbedtls_win64"
     #else
         #inclib "mbedtls_win32"
     #endif
 #else
-    #inclib __FB_EVAL__("fb -L"__PATH__)
     #ifdef __FB_64BIT__
         #inclib "mbedtls_linux64"
     #else
