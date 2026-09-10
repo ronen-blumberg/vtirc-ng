@@ -187,6 +187,15 @@ def handle(c, line):
         if info and trailing is not None:
             info["topic"] = trailing
             chan_broadcast(ch, ":%s TOPIC %s :%s" % (c.prefix(), info["name"], trailing))
+    elif cmd == "LIST":
+        reply(c, "321", "Channel :Users  Name")
+        with LOCK:
+            chans = list(CHANNELS.values())
+        for info in chans:
+            reply(c, "322", "%s %d :%s" % (info["name"], len(info["members"]), info["topic"]))
+        reply(c, "322", "#hebrew-עברית 7 :ערוץ בעברית")
+        reply(c, "322", "#linux 1234 :Linux support")
+        reply(c, "323", ":End of /LIST")
     elif cmd == "MODE":
         if args and args[0].startswith("#"):
             reply(c, "324", "%s +nt" % args[0])
@@ -208,6 +217,14 @@ def handle(c, line):
                 return
             if text.startswith("!hello") and "bot" in info["members"]:
                 chan_broadcast(target, ":bot!bot@fake.host PRIVMSG %s :hello %s" % (info["name"], c.nick), tagged=True)
+            if text == "!pm":
+                c.send(":bot!bot@fake.host PRIVMSG %s :psst, a private hello" % c.nick)
+            if text.startswith("!lines"):
+                n = int(text.split()[1]) if len(text.split()) > 1 else 50
+                for i in range(n):
+                    chan_broadcast(target, ":bot!bot@fake.host PRIVMSG %s :line %d of %d -- see https://example.org/page%d" % (info["name"], i + 1, n, i + 1))
+            if text == "!op":
+                chan_broadcast(target, ":bot!bot@fake.host MODE %s +o %s" % (info["name"], c.nick))
         else:
             with LOCK:
                 exists = target.lower() in CLIENTS

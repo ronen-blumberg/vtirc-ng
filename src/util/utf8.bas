@@ -366,3 +366,11 @@ Function utf8_from_wire(ByRef s As String, fallback_cs As Long) As String
     If utf8_valid(s) Then Return s
     Return charset_to_utf8(s, fallback_cs)
 End Function
+
+' Truncate or pad with spaces to exactly w display columns.
+Function utf8_pad(ByRef s As String, w As Long) As String
+    Dim t As String = utf8_truncate_width(s, w)
+    Dim tw As Long = utf8_width(t)
+    If tw < w Then t &= Space(w - tw)
+    Return t
+End Function

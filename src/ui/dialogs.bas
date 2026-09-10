@@ -25,6 +25,53 @@ Sub dlg_end()
     render_all()
 End Sub
 
+
+' Unicode-capable replacement for vt_tui_listbox_draw (same geometry, colours
+' and scrollbar); items are UTF-8. vt_tui_listbox_handle is still used for
+' input -- it only needs the item count.
+Sub ui_listbox_draw(x As Long, y As Long, wid As Long, hei As Long, items() As String, ByRef st As vt_tui_listbox_state)
+    Dim n As Long = UBound(items) - LBound(items) + 1
+    If n <= 0 Then Exit Sub
+    Dim base_ As Long = LBound(items)
+    Dim max_top As Long = n - hei
+    If max_top < 0 Then max_top = 0
+    Dim need_scroll As Byte = IIf(n > hei, 1, 0)
+    Dim iw As Long = IIf(need_scroll, wid - 1, wid)
+    If st.sel < 0 Then st.sel = 0
+    If st.sel >= n Then st.sel = n - 1
+    If st.top_item < 0 Then st.top_item = 0
+    If st.top_item > max_top Then st.top_item = max_top
+    Dim wfg As UByte = vt_internal_tui_theme.win_fg
+    Dim wbg As UByte = vt_internal_tui_theme.win_bg
+    Dim r As Long
+    For r = 0 To hei - 1
+        Dim idx As Long = st.top_item + r
+        Dim fg As UByte = IIf(idx = st.sel, wfg Xor 15, wfg)
+        Dim bg As UByte = IIf(idx = st.sel, wbg Xor 15, wbg)
+        ui_fill(x, y + r, x + iw - 1, y + r, fg, bg)
+        If idx < n Then
+            ' Chr(1) separates columns: each column gets its own bidi ordering so
+            ' right-to-left text cannot pull neighbouring columns across
+            Dim seg() As String
+            Dim ns As Long = str_split(items(base_ + idx), Chr(1), seg())
+            Dim cx As Long = x
+            Dim si As Long
+            For si = 0 To ns - 1
+                If cx > x + iw - 1 Then Exit For
+                Dim sw As Long = utf8_width(seg(si))
+                ui_text(cx, y + r, x + iw - cx, seg(si), fg, bg)
+                cx += sw
+            Next si
+        End If
+    Next r
+    If need_scroll Then
+        Dim thumb As Long = st.top_item * (hei - 1) \ (n - hei)
+        For r = 0 To hei - 1
+            vt_set_cell(x + wid - 1, y + r, IIf(r = thumb, 219, 177), wfg, wbg)
+        Next r
+    End If
+End Sub
+
 ' form item helpers
 Private Sub fi_label(items() As vt_tui_form_item, i As Long, x As Long, y As Long, w As Long, ByRef txt As String)
     items(i).kind = VT_FORM_LABEL : items(i).x = x : items(i).y = y : items(i).wid = w
@@ -189,7 +236,7 @@ Function dlg_list_edit(ByRef title As String, ByRef hint As String, lst() As Str
         Dim i As Long
         ReDim shown(0 To IIf(n > 0, n - 1, 0))
         For i = 0 To n - 1
-            shown(i) = to437(lst(i))
+            shown(i) = lst(i)
         Next i
         If n = 0 Then shown(0) = "(empty)"
         dlg_begin()
@@ -204,7 +251,7 @@ Function dlg_list_edit(ByRef title As String, ByRef hint As String, lst() As Str
             If VT_SCAN(k) = VT_KEY_DEL Then action = 3 : Exit Do
             vt_tui_rect_fill(fx + 1, fy + 1, fw - 2, fh - 2, 32, VT_BLACK, VT_LIGHT_GREY)
             vt_tui_window(fx, fy, fw, fh, " " & to437(title) & " ", VT_TUI_WIN_SHADOW)
-            vt_tui_listbox_draw(lbx, lby, lbw, lbh, shown(), st)
+            ui_listbox_draw(lbx, lby, lbw, lbh, shown(), st)
             vt_tui_form_draw(items(), focused)
             vt_sleep(10)
         Loop
@@ -389,7 +436,7 @@ Sub dlg_networks()
             End If
             Dim c As Long = conn_find(nets(i).name)
             Dim flag As String = IIf(conn_online(c), "* ", "  ")
-            shown(i) = to437(flag & Left(nets(i).name & Space(22), 22) & " " & Left(srv & Space(32), 32) & IIf(nets(i).autoconnect, " auto", ""))
+            shown(i) = flag & utf8_pad(nets(i).name, 22) & Chr(1) & " " & utf8_pad(srv, 32) & Chr(1) & IIf(nets(i).autoconnect, " auto", "")
         Next i
         If net_count = 0 Then shown(0) = "(no networks -- press Add)"
         dlg_begin()
@@ -409,7 +456,7 @@ Sub dlg_networks()
             vt_color(VT_DARK_GREY, VT_LIGHT_GREY)
             vt_locate(fy + 1, fx + 2)
             vt_print("Enter / double-click connects.  * = connected")
-            vt_tui_listbox_draw(fx + 2, fy + 3, fw - 4, fh - 7, shown(), st)
+            ui_listbox_draw(fx + 2, fy + 3, fw - 4, fh - 7, shown(), st)
             vt_tui_form_draw(items(), focused)
             vt_sleep(10)
         Loop
@@ -581,7 +628,7 @@ Sub dlg_settings()
         Dim shown(0 To smeta_n - 1) As String
         Dim i As Long
         For i = 0 To smeta_n - 1
-            shown(i) = to437(Left(smeta(i).key & Space(18), 18) & " " & Left(smeta_value_text(i), 50))
+            shown(i) = utf8_pad(smeta(i).key, 18) & Chr(1) & " " & Chr(1) & utf8_truncate_width(smeta_value_text(i), 50)
         Next i
         dlg_begin()
         Dim action As Long = 0
@@ -597,7 +644,7 @@ Sub dlg_settings()
             If r = 2 OrElse r = VT_FORM_CANCEL Then action = 2 : Exit Do
             vt_tui_rect_fill(fx + 1, fy + 1, fw - 2, fh - 2, 32, VT_BLACK, VT_LIGHT_GREY)
             vt_tui_window(fx, fy, fw, fh, " Preferences ", VT_TUI_WIN_SHADOW)
-            vt_tui_listbox_draw(fx + 2, fy + 1, fw - 4, fh - 7, shown(), st)
+            ui_listbox_draw(fx + 2, fy + 1, fw - 4, fh - 7, shown(), st)
             vt_color(VT_BLUE, VT_LIGHT_GREY)
             vt_locate(fy + fh - 5, fx + 2)
             If st.sel >= 0 AndAlso st.sel < smeta_n Then vt_print(Left(smeta(st.sel).desc & Space(fw - 4), fw - 4))
@@ -709,7 +756,7 @@ Sub dlg_chanlist(c As Long)
             ReDim shown(0 To IIf(nshown > 0, nshown - 1, 0))
             For i = 0 To nshown - 1
                 Dim ri As Long = idx(i)
-                shown(i) = to437(Left(conns(c).ls_name(ri) & Space(24), 24) & " " & Right(Space(6) & conns(c).ls_users(ri), 6) & "  " & conns(c).ls_topic(ri))
+                shown(i) = utf8_pad(conns(c).ls_name(ri), 24) & Chr(1) & " " & Right(Space(6) & conns(c).ls_users(ri), 6) & "  " & Chr(1) & conns(c).ls_topic(ri)
             Next i
             If nshown = 0 Then shown(0) = IIf(conns(c).ls_active, "(receiving the list...)", "(no channels match)")
             If st.sel >= nshown Then st.sel = 0 : st.top_item = 0
@@ -743,7 +790,7 @@ Sub dlg_chanlist(c As Long)
         vt_color(VT_DARK_GREY, VT_LIGHT_GREY)
         vt_locate(fy + 3, fx + 2)
         vt_print(Left("Channel" & Space(25), 25) & " Users  Topic" & IIf(by_name, "   (sorted by name)", "   (sorted by users)"))
-        vt_tui_listbox_draw(fx + 2, fy + 4, fw - 4, fh - 8, shown(), st)
+        ui_listbox_draw(fx + 2, fy + 4, fw - 4, fh - 8, shown(), st)
         vt_tui_form_draw(items(), focused)
         vt_sleep(10)
     Loop
