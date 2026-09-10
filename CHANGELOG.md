@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.0.1
+
+**Fixed**
+- Linux: connecting to a server by hostname (for example irc.libera.chat) crashed with a segmentation
+  fault. FreeBASIC gives new threads a 16 KB stack on Linux, too small for a DNS lookup; the connect
+  thread now gets 1 MB. The tests only used 127.0.0.1, which needs no DNS query; a DNS test was added.
+- Closing the window while a dialog was open (for example the Networks dialog on the first start)
+  did nothing until the dialog was closed; open dialogs are now cancelled and the program quits.
+
 ## 2.0.0 -- vtirc-ng
 
 A rewrite of VTIRC 1.23 as vtirc-ng: a full-featured client with several networks at once.

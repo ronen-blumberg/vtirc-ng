@@ -54,4 +54,5 @@ A single compilation unit: `vtirc.bas` includes `vt/vt.bi` (with `VT_USE_TUI`, `
 - fbc 1.10.1 crashes on one huge array initializer; `mkfont.py` writes 16 KB chunks instead.
 - `Open ... For Binary Access Write` truncates an existing file. Use plain `For Binary` to append or resume.
 - On Linux, SIGPIPE is ignored in `net_init`. On Windows, a refused non-blocking connect shows up in the `select` *exception* set (`net_wait_connect`).
+- `ThreadCreate` without a stack size gives only **16 KB** on Linux (FB 1.10.1). A real DNS lookup or TLS handshake overflows it, so `net_job_start` passes `NET_THREAD_STACK` (1 MB). Pass a stack size for any new thread.
 - Python edit scripts that contain FreeBASIC's `"""` break Python's triple quotes. Write such scripts to a file with `'''` strings.

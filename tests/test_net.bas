@@ -52,6 +52,21 @@ Function new_adhoc(ByRef nm As String, port As Long, tls As Byte, ByRef nick As 
     Return c
 End Function
 
+' ---------------------------------------------------------------- DNS on the connect thread
+' A real resolver query (not /etc/hosts) needs far more stack than FB's 16 KB
+' thread default; 2.0.0 crashed here. ".invalid" never resolves (RFC 6761).
+t_begin("dns")
+Scope
+    Dim j As net_job Ptr = net_job_start("vtirc-ng-test.invalid", 6667, 0, NP_NONE, "", 0, "", "", 5000)
+    Dim t0 As Double = clock_s()
+    Do While net_job_state(j) = NJ_RUNNING AndAlso clock_s() - t0 < 15
+        Sleep 10, 1
+    Loop
+    check_int(net_job_state(j), NJ_FAILED, "DNS lookup on the connect thread fails cleanly")
+    check(Len(j->errmsg) > 0, "with an error message")
+    net_job_free(j)
+End Scope
+
 ' ---------------------------------------------------------------- plain
 t_begin("plain")
 Dim Shared cp As Long

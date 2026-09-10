@@ -592,8 +592,15 @@ Function app_on_close() As Byte
 End Function
 
 Sub app_idle()
+    Static esc_t As Double
     core_poll()
     If ut_on Then uitest_tick()
+    ' quit requested (window closed) while a modal dialog runs its own loop:
+    ' press Esc until the dialogs are gone and the main loop can quit
+    If app_quit AndAlso clock_s() - esc_t > 0.1 Then
+        esc_t = clock_s()
+        vt_key_inject(CULng(VT_KEY_ESC) Shl 16)
+    End If
 End Sub
 
 Private Sub app_timers()

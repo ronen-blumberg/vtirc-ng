@@ -12,6 +12,10 @@
     #Include Once "win/ws2tcpip.bi"
 #Endif
 
+' Stack for the connect thread. FB 1.10.1's ThreadCreate default is 16 KB on
+' Linux, which a real DNS lookup (glibc resolver) or a TLS handshake overflows.
+Const NET_THREAD_STACK = 1024 * 1024
+
 Enum NET_PROXY_KIND
     NP_NONE = 0
     NP_SOCKS5
@@ -334,7 +338,7 @@ Function net_job_start(ByRef host As String, port As Long, use_tls As Byte, _
     j->timeout_ms = timeout_ms
     j->state      = NJ_RUNNING
     j->sock       = -1
-    j->th         = ThreadCreate(@net_worker, j)
+    j->th         = ThreadCreate(@net_worker, j, NET_THREAD_STACK)
     If j->th = 0 Then
         j->state  = NJ_FAILED
         j->errmsg = "cannot start connection thread"
